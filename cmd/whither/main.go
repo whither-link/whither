@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/whither-link/whither/internal/cache"
 	"github.com/whither-link/whither/internal/config"
 	"github.com/whither-link/whither/internal/httpapi"
 	"github.com/whither-link/whither/internal/observ"
@@ -39,6 +40,28 @@ func run() error {
 		slog.String("wikidata_api", cfg.WikidataAPIBase),
 	)
 	_ = clients // TODO
+
+	redisCache, err := cache.NewRedisCache(
+		cfg.RedisURL,
+		cfg.CacheTTLPositive,
+		cfg.CacheTTLNegative,
+		cfg.RedisTimeout,
+		logger,
+	)
+	if err != nil {
+		return fmt.Errorf("cache: %w", err)
+	}
+	defer func() { _ = redisCache.Close() }()
+
+	var c cache.Cache = redisCache
+	if cfg.CacheL1Enabled {
+		c, err = cache.NewTwoLevel(cfg.CacheL1Size, cfg.CacheL1TTL, redisCache, nil)
+		if err != nil {
+			return fmt.Errorf("cache l1: %w", err)
+		}
+	}
+	logger.Info("cache ready", slog.Bool("l1_enabled", cfg.CacheL1Enabled))
+	_ = c // TODO
 
 	router := httpapi.NewRouter(cfg, logger)
 	srv := httpapi.NewServer(cfg, router)

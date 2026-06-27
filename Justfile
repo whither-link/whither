@@ -1,6 +1,7 @@
-go_version := "1.24"
-go_image   := "golang:" + go_version
-lint_image := "golangci/golangci-lint:latest"
+go_version   := "1.24"
+go_image     := "docker.io/library/golang:" + go_version
+lint_image   := "docker.io/golangci/golangci-lint:latest"
+redis_image  := "docker.io/library/redis:7-alpine"
 binary     := "bin/whither"
 
 _run := "podman run --rm --userns=keep-id --security-opt label=disable -v .:/workspace -w /workspace"
@@ -39,6 +40,24 @@ fmt-check:
     fi
 
 check: vet lint fmt-check test
+
+# Spin up a throwaway Redis container, run integration-tagged tests, then tear it down.
+test-integration:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    port=16379
+    name=whither-test-redis
+    podman rm -f "$name" 2>/dev/null || true
+    podman run -d --name "$name" -p 127.0.0.1:${port}:6379 {{redis_image}}
+    trap 'podman rm -f "$name" >/dev/null 2>&1' EXIT
+    until podman exec "$name" redis-cli ping 2>/dev/null | grep -q PONG; do
+        sleep 0.2
+    done
+    podman run --rm --userns=keep-id --security-opt label=disable \
+        --network=host \
+        -e WHITHER_REDIS_URL="redis://127.0.0.1:${port}/0" \
+        -v .:/workspace -w /workspace \
+        {{go_image}} go test -tags=integration -count=1 ./...
 
 tidy:
     #!/usr/bin/env bash

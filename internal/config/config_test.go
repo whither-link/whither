@@ -26,6 +26,15 @@ var allVars = []string{
 	"WHITHER_UPSTREAM_MAX_RETRIES",
 	"WHITHER_UPSTREAM_BACKOFF_BASE",
 	"WHITHER_UPSTREAM_MAX_CONCURRENCY",
+	"WHITHER_REDIS_URL",
+	"WHITHER_REDIS_TIMEOUT",
+	"WHITHER_CACHE_TTL_POSITIVE",
+	"WHITHER_CACHE_TTL_NEGATIVE",
+	"WHITHER_CACHE_LANG",
+	"WHITHER_CACHE_L1_ENABLED",
+	"WHITHER_CACHE_L1_SIZE",
+	"WHITHER_CACHE_L1_TTL",
+	"WHITHER_CACHE_KEY_PREFIX",
 }
 
 func clearEnv(t *testing.T) {
@@ -179,6 +188,88 @@ func TestLoad_InvalidUpstreamInt(t *testing.T) {
 				t.Fatalf("expected error for %s=%q", tc.key, tc.val)
 			}
 		})
+	}
+}
+
+func TestLoad_CacheDefaults(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_USER_AGENT_CONTACT", "test@example.com")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+
+	if cfg.RedisURL != "redis://localhost:6379/0" {
+		t.Errorf("RedisURL = %q, want redis://localhost:6379/0", cfg.RedisURL)
+	}
+	if cfg.RedisTimeout != 200*time.Millisecond {
+		t.Errorf("RedisTimeout = %v, want 200ms", cfg.RedisTimeout)
+	}
+	if cfg.CacheTTLPositive != 24*time.Hour {
+		t.Errorf("CacheTTLPositive = %v, want 24h", cfg.CacheTTLPositive)
+	}
+	if cfg.CacheTTLNegative != 2*time.Hour {
+		t.Errorf("CacheTTLNegative = %v, want 2h", cfg.CacheTTLNegative)
+	}
+	if cfg.CacheLang != "en" {
+		t.Errorf("CacheLang = %q, want en", cfg.CacheLang)
+	}
+	if cfg.CacheL1Enabled {
+		t.Error("CacheL1Enabled should default to false")
+	}
+	if cfg.CacheL1Size != 1024 {
+		t.Errorf("CacheL1Size = %d, want 1024", cfg.CacheL1Size)
+	}
+	if cfg.CacheL1TTL != 60*time.Second {
+		t.Errorf("CacheL1TTL = %v, want 60s", cfg.CacheL1TTL)
+	}
+	if cfg.CacheKeyPrefix != "v1" {
+		t.Errorf("CacheKeyPrefix = %q, want v1", cfg.CacheKeyPrefix)
+	}
+}
+
+func TestLoad_CacheL1Enabled(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_ENV", "development")
+	t.Setenv("WHITHER_CACHE_L1_ENABLED", "true")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if !cfg.CacheL1Enabled {
+		t.Error("CacheL1Enabled should be true when WHITHER_CACHE_L1_ENABLED=true")
+	}
+}
+
+func TestLoad_InvalidCacheDuration(t *testing.T) {
+	cases := []struct{ key, val string }{
+		{"WHITHER_REDIS_TIMEOUT", "notaduration"},
+		{"WHITHER_CACHE_TTL_POSITIVE", "0s"},
+		{"WHITHER_CACHE_TTL_NEGATIVE", "-1h"},
+		{"WHITHER_CACHE_L1_TTL", "abc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key+"="+tc.val, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("WHITHER_ENV", "development")
+			t.Setenv(tc.key, tc.val)
+			_, err := config.Load()
+			if err == nil {
+				t.Fatalf("expected error for %s=%q", tc.key, tc.val)
+			}
+		})
+	}
+}
+
+func TestLoad_InvalidCacheL1Enabled(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_ENV", "development")
+	t.Setenv("WHITHER_CACHE_L1_ENABLED", "notabool")
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error for invalid WHITHER_CACHE_L1_ENABLED")
 	}
 }
 

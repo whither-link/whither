@@ -9,6 +9,35 @@ import (
 	"time"
 )
 
+var defaults = map[string]string{
+	"WHITHER_ADDR":                     ":8080",
+	"WHITHER_LOG_LEVEL":                "info",
+	"WHITHER_LOG_FORMAT":               "json",
+	"WHITHER_ENV":                      "production",
+	"WHITHER_READ_HEADER_TIMEOUT":      "5s",
+	"WHITHER_READ_TIMEOUT":             "10s",
+	"WHITHER_WRITE_TIMEOUT":            "10s",
+	"WHITHER_IDLE_TIMEOUT":             "60s",
+	"WHITHER_SHUTDOWN_TIMEOUT":         "15s",
+	"WHITHER_WIKI_API_BASE":            "https://en.wikipedia.org/w/api.php",
+	"WHITHER_WIKIDATA_API_BASE":        "https://www.wikidata.org/w/api.php",
+	"WHITHER_ARTICLE_HTML_BASE":        "https://en.wikipedia.org/api/rest_v1",
+	"WHITHER_USER_AGENT_CONTACT":       "",
+	"WHITHER_UPSTREAM_TIMEOUT":         "5s",
+	"WHITHER_UPSTREAM_BACKOFF_BASE":    "100ms",
+	"WHITHER_UPSTREAM_MAX_RETRIES":     "3",
+	"WHITHER_UPSTREAM_MAX_CONCURRENCY": "8",
+	"WHITHER_REDIS_URL":                "redis://localhost:6379/0",
+	"WHITHER_REDIS_TIMEOUT":            "200ms",
+	"WHITHER_CACHE_TTL_POSITIVE":       "24h",
+	"WHITHER_CACHE_TTL_NEGATIVE":       "2h",
+	"WHITHER_CACHE_LANG":               "en",
+	"WHITHER_CACHE_L1_ENABLED":         "false",
+	"WHITHER_CACHE_L1_SIZE":            "1024",
+	"WHITHER_CACHE_L1_TTL":             "60s",
+	"WHITHER_CACHE_KEY_PREFIX":         "v1",
+}
+
 // Config holds all application configuration loaded from environment variables.
 type Config struct {
 	Addr      string
@@ -33,41 +62,55 @@ type Config struct {
 	UpstreamMaxRetries     int
 	UpstreamBackoffBase    time.Duration
 	UpstreamMaxConcurrency int
+
+	// Cache / Redis
+	RedisURL         string
+	RedisTimeout     time.Duration
+	CacheTTLPositive time.Duration
+	CacheTTLNegative time.Duration
+	CacheLang        string
+	CacheL1Enabled   bool
+	CacheL1Size      int
+	CacheL1TTL       time.Duration
+	CacheKeyPrefix   string
 }
 
 // Load reads and validates configuration from environment variables.
 func Load() (*Config, error) {
 	cfg := &Config{
-		Addr:             getenv("WHITHER_ADDR", ":8080"),
-		LogFormat:        getenv("WHITHER_LOG_FORMAT", "json"),
-		Env:              getenv("WHITHER_ENV", "production"),
-		WikiAPIBase:      getenv("WHITHER_WIKI_API_BASE", "https://en.wikipedia.org/w/api.php"),
-		WikidataAPIBase:  getenv("WHITHER_WIKIDATA_API_BASE", "https://www.wikidata.org/w/api.php"),
-		ArticleHTMLBase:  getenv("WHITHER_ARTICLE_HTML_BASE", "https://en.wikipedia.org/api/rest_v1"),
-		UserAgentContact: getenv("WHITHER_USER_AGENT_CONTACT", ""),
+		Addr:             getenv("WHITHER_ADDR"),
+		LogFormat:        getenv("WHITHER_LOG_FORMAT"),
+		Env:              getenv("WHITHER_ENV"),
+		WikiAPIBase:      getenv("WHITHER_WIKI_API_BASE"),
+		WikidataAPIBase:  getenv("WHITHER_WIKIDATA_API_BASE"),
+		ArticleHTMLBase:  getenv("WHITHER_ARTICLE_HTML_BASE"),
+		UserAgentContact: getenv("WHITHER_USER_AGENT_CONTACT"),
+		RedisURL:         getenv("WHITHER_REDIS_URL"),
+		CacheLang:        getenv("WHITHER_CACHE_LANG"),
+		CacheKeyPrefix:   getenv("WHITHER_CACHE_KEY_PREFIX"),
 	}
 
 	var err error
 
-	if cfg.LogLevel, err = parseLogLevel("WHITHER_LOG_LEVEL", "info"); err != nil {
+	if cfg.LogLevel, err = parseLogLevel("WHITHER_LOG_LEVEL"); err != nil {
 		return nil, err
 	}
 	if cfg.LogFormat != "json" && cfg.LogFormat != "text" {
 		return nil, fmt.Errorf("WHITHER_LOG_FORMAT %q: must be json or text", cfg.LogFormat)
 	}
-	if cfg.ReadHeaderTimeout, err = parseDuration("WHITHER_READ_HEADER_TIMEOUT", "5s"); err != nil {
+	if cfg.ReadHeaderTimeout, err = parseDuration("WHITHER_READ_HEADER_TIMEOUT"); err != nil {
 		return nil, err
 	}
-	if cfg.ReadTimeout, err = parseDuration("WHITHER_READ_TIMEOUT", "10s"); err != nil {
+	if cfg.ReadTimeout, err = parseDuration("WHITHER_READ_TIMEOUT"); err != nil {
 		return nil, err
 	}
-	if cfg.WriteTimeout, err = parseDuration("WHITHER_WRITE_TIMEOUT", "10s"); err != nil {
+	if cfg.WriteTimeout, err = parseDuration("WHITHER_WRITE_TIMEOUT"); err != nil {
 		return nil, err
 	}
-	if cfg.IdleTimeout, err = parseDuration("WHITHER_IDLE_TIMEOUT", "60s"); err != nil {
+	if cfg.IdleTimeout, err = parseDuration("WHITHER_IDLE_TIMEOUT"); err != nil {
 		return nil, err
 	}
-	if cfg.ShutdownTimeout, err = parseDuration("WHITHER_SHUTDOWN_TIMEOUT", "15s"); err != nil {
+	if cfg.ShutdownTimeout, err = parseDuration("WHITHER_SHUTDOWN_TIMEOUT"); err != nil {
 		return nil, err
 	}
 
@@ -75,31 +118,51 @@ func Load() (*Config, error) {
 	if cfg.UserAgentContact == "" && cfg.Env == "production" {
 		return nil, fmt.Errorf("WHITHER_USER_AGENT_CONTACT is required in production (Wikimedia API etiquette)")
 	}
-	if cfg.UpstreamTimeout, err = parseDuration("WHITHER_UPSTREAM_TIMEOUT", "5s"); err != nil {
+	if cfg.UpstreamTimeout, err = parseDuration("WHITHER_UPSTREAM_TIMEOUT"); err != nil {
 		return nil, err
 	}
-	if cfg.UpstreamBackoffBase, err = parseDuration("WHITHER_UPSTREAM_BACKOFF_BASE", "100ms"); err != nil {
+	if cfg.UpstreamBackoffBase, err = parseDuration("WHITHER_UPSTREAM_BACKOFF_BASE"); err != nil {
 		return nil, err
 	}
-	if cfg.UpstreamMaxRetries, err = parseInt("WHITHER_UPSTREAM_MAX_RETRIES", 3); err != nil {
+	if cfg.UpstreamMaxRetries, err = parseInt("WHITHER_UPSTREAM_MAX_RETRIES"); err != nil {
 		return nil, err
 	}
-	if cfg.UpstreamMaxConcurrency, err = parseInt("WHITHER_UPSTREAM_MAX_CONCURRENCY", 8); err != nil {
+	if cfg.UpstreamMaxConcurrency, err = parseInt("WHITHER_UPSTREAM_MAX_CONCURRENCY"); err != nil {
+		return nil, err
+	}
+
+	// Cache / Redis
+	if cfg.RedisTimeout, err = parseDuration("WHITHER_REDIS_TIMEOUT"); err != nil {
+		return nil, err
+	}
+	if cfg.CacheTTLPositive, err = parseDuration("WHITHER_CACHE_TTL_POSITIVE"); err != nil {
+		return nil, err
+	}
+	if cfg.CacheTTLNegative, err = parseDuration("WHITHER_CACHE_TTL_NEGATIVE"); err != nil {
+		return nil, err
+	}
+	if cfg.CacheL1Enabled, err = parseBool("WHITHER_CACHE_L1_ENABLED"); err != nil {
+		return nil, err
+	}
+	if cfg.CacheL1Size, err = parseInt("WHITHER_CACHE_L1_SIZE"); err != nil {
+		return nil, err
+	}
+	if cfg.CacheL1TTL, err = parseDuration("WHITHER_CACHE_L1_TTL"); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
 }
 
-func getenv(key, fallback string) string {
+func getenv(key string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
-	return fallback
+	return defaults[key]
 }
 
-func parseLogLevel(envKey, defaultVal string) (slog.Level, error) {
-	raw := getenv(envKey, defaultVal)
+func parseLogLevel(envKey string) (slog.Level, error) {
+	raw := getenv(envKey)
 	var level slog.Level
 	if err := level.UnmarshalText([]byte(raw)); err != nil {
 		return 0, fmt.Errorf("%s %q: must be one of debug, info, warn, error", envKey, raw)
@@ -107,11 +170,8 @@ func parseLogLevel(envKey, defaultVal string) (slog.Level, error) {
 	return level, nil
 }
 
-func parseInt(envKey string, defaultVal int) (int, error) {
-	raw := os.Getenv(envKey)
-	if raw == "" {
-		return defaultVal, nil
-	}
+func parseInt(envKey string) (int, error) {
+	raw := getenv(envKey)
 	n, err := strconv.Atoi(raw)
 	if err != nil {
 		return 0, fmt.Errorf("%s %q: must be an integer: %w", envKey, raw, err)
@@ -122,8 +182,17 @@ func parseInt(envKey string, defaultVal int) (int, error) {
 	return n, nil
 }
 
-func parseDuration(envKey, defaultVal string) (time.Duration, error) {
-	raw := getenv(envKey, defaultVal)
+func parseBool(envKey string) (bool, error) {
+	raw := getenv(envKey)
+	b, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s %q: must be a boolean (true/false/1/0)", envKey, raw)
+	}
+	return b, nil
+}
+
+func parseDuration(envKey string) (time.Duration, error) {
+	raw := getenv(envKey)
 	d, err := time.ParseDuration(raw)
 	if err != nil {
 		return 0, fmt.Errorf("%s %q: invalid duration: %w", envKey, raw, err)
