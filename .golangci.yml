@@ -1,0 +1,30 @@
+# See https://golangci-lint.run/usage/configuration/
+
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gocritic
+    - govet
+    - ineffassign
+    - revive
+    - staticcheck  # subsumes gosimple and unused
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
