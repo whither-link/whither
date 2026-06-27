@@ -16,7 +16,7 @@ func discardLogger() *slog.Logger {
 }
 
 func TestRequestID_HeaderSet(t *testing.T) {
-	handler := observ.RequestID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := observ.RequestID(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -54,7 +54,7 @@ func TestRequestID_PropagatedToContext(t *testing.T) {
 }
 
 func TestRecovery_CatchesPanic(t *testing.T) {
-	handler := observ.Recovery(discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := observ.Recovery(discardLogger())(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("test panic")
 	}))
 
@@ -68,7 +68,7 @@ func TestRecovery_CatchesPanic(t *testing.T) {
 }
 
 func TestRecovery_DoesNotLeakPanicValue(t *testing.T) {
-	handler := observ.Recovery(discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := observ.Recovery(discardLogger())(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		panic("secret details")
 	}))
 
@@ -83,7 +83,7 @@ func TestRecovery_DoesNotLeakPanicValue(t *testing.T) {
 }
 
 func TestAccessLog_CapturesStatus(t *testing.T) {
-	handler := observ.AccessLog(discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := observ.AccessLog(discardLogger())(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 	}))
 

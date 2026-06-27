@@ -1,3 +1,4 @@
+// Package observ provides structured logging and HTTP middleware for observability.
 package observ
 
 import (

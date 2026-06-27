@@ -18,6 +18,14 @@ var allVars = []string{
 	"WHITHER_IDLE_TIMEOUT",
 	"WHITHER_SHUTDOWN_TIMEOUT",
 	"WHITHER_ENV",
+	"WHITHER_WIKI_API_BASE",
+	"WHITHER_WIKIDATA_API_BASE",
+	"WHITHER_ARTICLE_HTML_BASE",
+	"WHITHER_USER_AGENT_CONTACT",
+	"WHITHER_UPSTREAM_TIMEOUT",
+	"WHITHER_UPSTREAM_MAX_RETRIES",
+	"WHITHER_UPSTREAM_BACKOFF_BASE",
+	"WHITHER_UPSTREAM_MAX_CONCURRENCY",
 }
 
 func clearEnv(t *testing.T) {
@@ -29,6 +37,7 @@ func clearEnv(t *testing.T) {
 
 func TestLoad_Defaults(t *testing.T) {
 	clearEnv(t)
+	t.Setenv("WHITHER_USER_AGENT_CONTACT", "test@example.com")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -66,6 +75,7 @@ func TestLoad_Defaults(t *testing.T) {
 
 func TestLoad_Overrides(t *testing.T) {
 	clearEnv(t)
+	t.Setenv("WHITHER_USER_AGENT_CONTACT", "test@example.com")
 	t.Setenv("WHITHER_ADDR", ":9090")
 	t.Setenv("WHITHER_LOG_LEVEL", "debug")
 	t.Setenv("WHITHER_LOG_FORMAT", "text")
@@ -96,6 +106,7 @@ func TestLoad_Overrides(t *testing.T) {
 
 func TestLoad_InvalidLogLevel(t *testing.T) {
 	clearEnv(t)
+	t.Setenv("WHITHER_ENV", "development")
 	t.Setenv("WHITHER_LOG_LEVEL", "verbose")
 
 	_, err := config.Load()
@@ -106,6 +117,7 @@ func TestLoad_InvalidLogLevel(t *testing.T) {
 
 func TestLoad_InvalidLogFormat(t *testing.T) {
 	clearEnv(t)
+	t.Setenv("WHITHER_ENV", "development")
 	t.Setenv("WHITHER_LOG_FORMAT", "yaml")
 
 	_, err := config.Load()
@@ -129,11 +141,42 @@ func TestLoad_InvalidDuration(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.envKey+"="+tc.value, func(t *testing.T) {
 			clearEnv(t)
+			t.Setenv("WHITHER_ENV", "development")
 			t.Setenv(tc.envKey, tc.value)
 
 			_, err := config.Load()
 			if err == nil {
 				t.Fatalf("Load() with %s=%q: expected error, got nil", tc.envKey, tc.value)
+			}
+		})
+	}
+}
+
+func TestLoad_UserAgentContactRequiredInProduction(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_ENV", "production")
+	// WHITHER_USER_AGENT_CONTACT left empty
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error when UserAgentContact is empty in production")
+	}
+}
+
+func TestLoad_InvalidUpstreamInt(t *testing.T) {
+	cases := []struct{ key, val string }{
+		{"WHITHER_UPSTREAM_MAX_RETRIES", "notanint"},
+		{"WHITHER_UPSTREAM_MAX_RETRIES", "0"},
+		{"WHITHER_UPSTREAM_MAX_CONCURRENCY", "-1"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key+"="+tc.val, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("WHITHER_ENV", "development")
+			t.Setenv(tc.key, tc.val)
+			_, err := config.Load()
+			if err == nil {
+				t.Fatalf("expected error for %s=%q", tc.key, tc.val)
 			}
 		})
 	}
@@ -150,6 +193,7 @@ func TestLoad_AllLogLevels(t *testing.T) {
 	for raw, want := range levels {
 		t.Run(raw, func(t *testing.T) {
 			clearEnv(t)
+			t.Setenv("WHITHER_ENV", "development")
 			t.Setenv("WHITHER_LOG_LEVEL", raw)
 
 			cfg, err := config.Load()

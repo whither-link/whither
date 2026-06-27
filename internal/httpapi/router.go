@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter builds the application request mux and applies middleware.
-func NewRouter(cfg *config.Config, logger *slog.Logger) http.Handler {
+func NewRouter(_ *config.Config, logger *slog.Logger) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET "+HealthPath, healthHandler())

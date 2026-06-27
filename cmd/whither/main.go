@@ -1,3 +1,4 @@
+// Package main is the entry point for the whither HTTP redirect service.
 package main
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/whither-link/whither/internal/config"
 	"github.com/whither-link/whither/internal/httpapi"
 	"github.com/whither-link/whither/internal/observ"
+	"github.com/whither-link/whither/internal/wiki"
 )
 
 func main() {
@@ -30,6 +32,13 @@ func run() error {
 
 	logger := observ.NewLogger(cfg)
 	slog.SetDefault(logger)
+
+	clients := wiki.NewClients(cfg)
+	logger.Info("upstream clients ready",
+		slog.String("wiki_api", cfg.WikiAPIBase),
+		slog.String("wikidata_api", cfg.WikidataAPIBase),
+	)
+	_ = clients // TODO
 
 	router := httpapi.NewRouter(cfg, logger)
 	srv := httpapi.NewServer(cfg, router)

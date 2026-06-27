@@ -54,6 +54,11 @@ dev:
         -e WHITHER_LOG_LEVEL=debug \
         {{go_image}} go run ./cmd/whither
 
+gen-fixtures:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash scripts/gen-fixtures.sh
+
 clean:
     #!/usr/bin/env bash
     set -euo pipefail
