@@ -36,6 +36,12 @@ var defaults = map[string]string{
 	"WHITHER_CACHE_L1_SIZE":            "1024",
 	"WHITHER_CACHE_L1_TTL":             "60s",
 	"WHITHER_CACHE_KEY_PREFIX":         "v1",
+
+	// Resolver
+	"WHITHER_WIKI_ARTICLE_BASE": "https://en.wikipedia.org/wiki/",
+	"WHITHER_WIKI_SEARCH_BASE":  "https://en.wikipedia.org/w/index.php?search=",
+	"WHITHER_OPENSEARCH_LIMIT":  "1",
+	"WHITHER_INFOBOX_ENABLED":   "false", // stubbed; set true once F4 is implemented
 }
 
 // Config holds all application configuration loaded from environment variables.
@@ -63,6 +69,12 @@ type Config struct {
 	UpstreamBackoffBase    time.Duration
 	UpstreamMaxConcurrency int
 
+	// Resolver
+	WikiArticleBase string
+	WikiSearchBase  string
+	OpenSearchLimit int
+	InfoboxEnabled  bool
+
 	// Cache / Redis
 	RedisURL         string
 	RedisTimeout     time.Duration
@@ -85,6 +97,8 @@ func Load() (*Config, error) {
 		WikidataAPIBase:  getenv("WHITHER_WIKIDATA_API_BASE"),
 		ArticleHTMLBase:  getenv("WHITHER_ARTICLE_HTML_BASE"),
 		UserAgentContact: getenv("WHITHER_USER_AGENT_CONTACT"),
+		WikiArticleBase:  getenv("WHITHER_WIKI_ARTICLE_BASE"),
+		WikiSearchBase:   getenv("WHITHER_WIKI_SEARCH_BASE"),
 		RedisURL:         getenv("WHITHER_REDIS_URL"),
 		CacheLang:        getenv("WHITHER_CACHE_LANG"),
 		CacheKeyPrefix:   getenv("WHITHER_CACHE_KEY_PREFIX"),
@@ -128,6 +142,14 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.UpstreamMaxConcurrency, err = parseInt("WHITHER_UPSTREAM_MAX_CONCURRENCY"); err != nil {
+		return nil, err
+	}
+
+	// Resolver
+	if cfg.OpenSearchLimit, err = parseInt("WHITHER_OPENSEARCH_LIMIT"); err != nil {
+		return nil, err
+	}
+	if cfg.InfoboxEnabled, err = parseBool("WHITHER_INFOBOX_ENABLED"); err != nil {
 		return nil, err
 	}
 

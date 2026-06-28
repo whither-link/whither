@@ -26,6 +26,10 @@ var allVars = []string{
 	"WHITHER_UPSTREAM_MAX_RETRIES",
 	"WHITHER_UPSTREAM_BACKOFF_BASE",
 	"WHITHER_UPSTREAM_MAX_CONCURRENCY",
+	"WHITHER_WIKI_ARTICLE_BASE",
+	"WHITHER_WIKI_SEARCH_BASE",
+	"WHITHER_OPENSEARCH_LIMIT",
+	"WHITHER_INFOBOX_ENABLED",
 	"WHITHER_REDIS_URL",
 	"WHITHER_REDIS_TIMEOUT",
 	"WHITHER_CACHE_TTL_POSITIVE",
@@ -188,6 +192,28 @@ func TestLoad_InvalidUpstreamInt(t *testing.T) {
 				t.Fatalf("expected error for %s=%q", tc.key, tc.val)
 			}
 		})
+	}
+}
+
+func TestLoad_ResolverDefaults(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_USER_AGENT_CONTACT", "test@example.com")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if cfg.WikiArticleBase != "https://en.wikipedia.org/wiki/" {
+		t.Errorf("WikiArticleBase = %q", cfg.WikiArticleBase)
+	}
+	if cfg.WikiSearchBase != "https://en.wikipedia.org/w/index.php?search=" {
+		t.Errorf("WikiSearchBase = %q", cfg.WikiSearchBase)
+	}
+	if cfg.OpenSearchLimit != 1 {
+		t.Errorf("OpenSearchLimit = %d, want 1", cfg.OpenSearchLimit)
+	}
+	if cfg.InfoboxEnabled {
+		t.Error("InfoboxEnabled should default to false")
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/whither-link/whither/internal/config"
 	"github.com/whither-link/whither/internal/httpapi"
 	"github.com/whither-link/whither/internal/observ"
+	"github.com/whither-link/whither/internal/resolve"
 	"github.com/whither-link/whither/internal/wiki"
 )
 
@@ -61,7 +62,10 @@ func run() error {
 		}
 	}
 	logger.Info("cache ready", slog.Bool("l1_enabled", cfg.CacheL1Enabled))
-	_ = c // TODO
+
+	resolver := resolve.NewResolver(cfg, clients.MediaWiki, clients.Wikidata, clients.Articles, c, logger)
+	logger.Info("resolver ready")
+	_ = resolver // TODO: consumed by RFC-005
 
 	router := httpapi.NewRouter(cfg, logger)
 	srv := httpapi.NewServer(cfg, router)
