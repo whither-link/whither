@@ -261,7 +261,7 @@ func TestResolver_UpstreamUnavailablePropagates(t *testing.T) {
 	r := testResolver(mw, &fakeWD{}, newCache())
 
 	_, err := r.Resolve(context.Background(), "Foo", false)
-	if !errors.Is(err, wiki.ErrUpstreamUnavailable) {
+	if !errors.Is(err, ErrUpstreamUnavailable) {
 		t.Errorf("expected ErrUpstreamUnavailable, got %v", err)
 	}
 }
@@ -272,8 +272,44 @@ func TestResolver_WikidataUnavailablePropagates(t *testing.T) {
 	r := testResolver(mw, wd, newCache())
 
 	_, err := r.Resolve(context.Background(), "Foo", false)
-	if !errors.Is(err, wiki.ErrUpstreamUnavailable) {
+	if !errors.Is(err, ErrUpstreamUnavailable) {
 		t.Errorf("expected ErrUpstreamUnavailable, got %v", err)
+	}
+}
+
+func TestResolver_GetStale_Hit(t *testing.T) {
+	c := newCache()
+	_ = c.Set(context.Background(), cache.Key("v1", "en", "foo"), cache.Entry{
+		URL:         "https://foo.example.com",
+		ResolvedVia: "wikidata-p856",
+		QID:         "Q1",
+		Positive:    true,
+	})
+	r := testResolver(&fakeMW{}, &fakeWD{}, c)
+
+	got, ok, err := r.GetStale(context.Background(), "foo")
+	if err != nil {
+		t.Fatalf("GetStale: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected ok=true")
+	}
+	if got.Location != "https://foo.example.com" {
+		t.Errorf("Location = %q, want https://foo.example.com", got.Location)
+	}
+	if !got.FromCache {
+		t.Error("expected FromCache=true")
+	}
+}
+
+func TestResolver_GetStale_Miss(t *testing.T) {
+	r := testResolver(&fakeMW{}, &fakeWD{}, newCache())
+	_, ok, err := r.GetStale(context.Background(), "nonexistent")
+	if err != nil {
+		t.Fatalf("GetStale: %v", err)
+	}
+	if ok {
+		t.Error("expected ok=false for empty cache")
 	}
 }
 

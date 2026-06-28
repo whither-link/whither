@@ -48,13 +48,7 @@ func (r *resolver) Resolve(ctx context.Context, rawPath string, fresh bool) (Res
 
 	if !fresh {
 		if entry, ok, _ := r.cache.Get(ctx, key); ok {
-			return Result{
-				Location:    entry.URL,
-				ResolvedVia: ResolvedVia(entry.ResolvedVia),
-				QID:         entry.QID,
-				Positive:    entry.Positive,
-				FromCache:   true,
-			}, nil
+			return fromEntry(entry), nil
 		}
 	}
 
@@ -70,7 +64,7 @@ func (r *resolver) Resolve(ctx context.Context, rawPath string, fresh bool) (Res
 			// F5: try opensearch to find the closest article.
 			return r.tryOpenSearch(ctx, key, title)
 		case errors.Is(err, wiki.ErrUpstreamUnavailable):
-			return Result{}, err
+			return Result{}, ErrUpstreamUnavailable
 		default:
 			return Result{}, fmt.Errorf("normalize %q: %w", title, err)
 		}
@@ -89,7 +83,7 @@ func (r *resolver) tryOpenSearch(ctx context.Context, key, title string) (Result
 	page, err := r.mw.Normalize(ctx, cands[0])
 	if err != nil {
 		if errors.Is(err, wiki.ErrUpstreamUnavailable) {
-			return Result{}, err
+			return Result{}, ErrUpstreamUnavailable
 		}
 		return r.finalize(ctx, key, r.searchURL(title), ViaFallback, "", false)
 	}
@@ -107,7 +101,7 @@ func (r *resolver) resolveWithPage(ctx context.Context, key string, page wiki.Pa
 				return r.finalize(ctx, key, u, ViaP856, page.QID, true)
 			}
 		case errors.Is(err, wiki.ErrUpstreamUnavailable):
-			return Result{}, err
+			return Result{}, ErrUpstreamUnavailable
 		case errors.Is(err, wiki.ErrNotFound):
 			// No P856 claims: expected for many articles; fall through silently.
 		default:
@@ -123,7 +117,7 @@ func (r *resolver) resolveWithPage(ctx context.Context, key string, page wiki.Pa
 				return r.finalize(ctx, key, u, ViaInfobox, page.QID, true)
 			}
 		} else if errors.Is(err, wiki.ErrUpstreamUnavailable) {
-			return Result{}, err
+			return Result{}, ErrUpstreamUnavailable
 		}
 	}
 
@@ -157,10 +151,36 @@ func (r *resolver) finalize(ctx context.Context, key, u string, via ResolvedVia,
 	}, nil
 }
 
+// GetStale implements [Resolver]. It performs a cache-only lookup so the handler
+// can serve a stale response when live resolution fails with ErrUpstreamUnavailable.
+func (r *resolver) GetStale(ctx context.Context, rawPath string) (Result, bool, error) {
+	title := fullyURLDecode(rawPath)
+	if validateInput(title) != nil {
+		return Result{}, false, nil
+	}
+	key := cache.Key(r.cfg.CacheKeyPrefix, r.cfg.CacheLang, normalizeForKey(title))
+	entry, ok, _ := r.cache.Get(ctx, key)
+	if !ok {
+		return Result{}, false, nil
+	}
+	return fromEntry(entry), true, nil
+}
+
 func (r *resolver) articleURL(title string) string {
 	return r.cfg.WikiArticleBase + url.PathEscape(title)
 }
 
 func (r *resolver) searchURL(query string) string {
 	return r.cfg.WikiSearchBase + url.QueryEscape(query)
+}
+
+// fromEntry converts a cache.Entry into a Result for serving.
+func fromEntry(e cache.Entry) Result {
+	return Result{
+		Location:    e.URL,
+		ResolvedVia: ResolvedVia(e.ResolvedVia),
+		QID:         e.QID,
+		Positive:    e.Positive,
+		FromCache:   true,
+	}
 }

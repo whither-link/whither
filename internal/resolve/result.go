@@ -26,4 +26,8 @@ type Result struct {
 // Resolver turns a raw URL path segment into a validated redirect target.
 type Resolver interface {
 	Resolve(ctx context.Context, rawPath string, fresh bool) (Result, error)
+	// GetStale performs a cache-only lookup for rawPath. It is called on upstream
+	// failure (ErrUpstreamUnavailable) to serve a best-effort stale response.
+	// Returns (result, true, nil) on hit; (Result{}, false, nil) on miss or error.
+	GetStale(ctx context.Context, rawPath string) (Result, bool, error)
 }

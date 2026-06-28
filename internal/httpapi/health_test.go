@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,15 +11,35 @@ import (
 	"github.com/whither-link/whither/internal/config"
 	"github.com/whither-link/whither/internal/httpapi"
 	"github.com/whither-link/whither/internal/observ"
+	"github.com/whither-link/whither/internal/resolve"
 )
+
+// noopResolver is a Resolver stub for tests that don't exercise the redirect handler.
+type noopResolver struct{}
+
+func (noopResolver) Resolve(_ context.Context, _ string, _ bool) (resolve.Result, error) {
+	return resolve.Result{}, resolve.ErrUpstreamUnavailable
+}
+
+func (noopResolver) GetStale(_ context.Context, _ string) (resolve.Result, bool, error) {
+	return resolve.Result{}, false, nil
+}
+
+// testCfg returns a minimal Config suitable for use in handler tests.
+func testCfg() *config.Config {
+	return &config.Config{
+		LogFormat:         "text",
+		LogLevel:          slog.LevelInfo,
+		ClientCacheMaxAge: 3600,
+		AttributionText:   "Test attribution",
+		MaxPathLen:        512,
+	}
+}
 
 func testRouter(t *testing.T) http.Handler {
 	t.Helper()
-	cfg := &config.Config{
-		LogFormat: "text",
-		LogLevel:  slog.LevelInfo,
-	}
-	return httpapi.NewRouter(cfg, observ.NewLogger(cfg))
+	cfg := testCfg()
+	return httpapi.NewRouter(cfg, observ.NewLogger(cfg), noopResolver{})
 }
 
 func TestHealthEndpoint_OK(t *testing.T) {

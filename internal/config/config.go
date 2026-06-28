@@ -42,6 +42,11 @@ var defaults = map[string]string{
 	"WHITHER_WIKI_SEARCH_BASE":  "https://en.wikipedia.org/w/index.php?search=",
 	"WHITHER_OPENSEARCH_LIMIT":  "1",
 	"WHITHER_INFOBOX_ENABLED":   "false", // stubbed; set true once F4 is implemented
+
+	// HTTP API
+	"WHITHER_CLIENT_CACHE_MAXAGE": "3600",
+	"WHITHER_ATTRIBUTION_TEXT":    "Data from Wikipedia/Wikidata, CC BY-SA / CC0",
+	"WHITHER_MAX_PATH_LEN":        "512",
 }
 
 // Config holds all application configuration loaded from environment variables.
@@ -74,6 +79,11 @@ type Config struct {
 	WikiSearchBase  string
 	OpenSearchLimit int
 	InfoboxEnabled  bool
+
+	// HTTP API
+	ClientCacheMaxAge int // seconds; emitted as Cache-Control: public, max-age=N
+	AttributionText   string
+	MaxPathLen        int
 
 	// Cache / Redis
 	RedisURL         string
@@ -170,6 +180,15 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.CacheL1TTL, err = parseDuration("WHITHER_CACHE_L1_TTL"); err != nil {
+		return nil, err
+	}
+
+	// HTTP API
+	cfg.AttributionText = getenv("WHITHER_ATTRIBUTION_TEXT")
+	if cfg.ClientCacheMaxAge, err = parseInt("WHITHER_CLIENT_CACHE_MAXAGE"); err != nil {
+		return nil, err
+	}
+	if cfg.MaxPathLen, err = parseInt("WHITHER_MAX_PATH_LEN"); err != nil {
 		return nil, err
 	}
 

@@ -67,10 +67,20 @@ tidy:
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
-    {{_run}} \
-        -p 8080:8080 \
+    redis_name=whither-dev-redis
+    podman rm -f "$redis_name" 2>/dev/null || true
+    podman run -d --name "$redis_name" -p 127.0.0.1:6379:6379 {{redis_image}}
+    trap 'podman rm -f "$redis_name" >/dev/null 2>&1' EXIT
+    until podman exec "$redis_name" redis-cli ping 2>/dev/null | grep -q PONG; do
+        sleep 0.2
+    done
+    podman run --rm --userns=keep-id --security-opt label=disable \
+        --network=host \
+        -v .:/workspace -w /workspace \
         -e WHITHER_LOG_FORMAT=text \
         -e WHITHER_LOG_LEVEL=debug \
+        -e WHITHER_USER_AGENT_CONTACT=dev@whither.link \
+        -e WHITHER_REDIS_URL=redis://127.0.0.1:6379/0 \
         {{go_image}} go run ./cmd/whither
 
 gen-fixtures:

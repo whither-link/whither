@@ -39,6 +39,9 @@ var allVars = []string{
 	"WHITHER_CACHE_L1_SIZE",
 	"WHITHER_CACHE_L1_TTL",
 	"WHITHER_CACHE_KEY_PREFIX",
+	"WHITHER_CLIENT_CACHE_MAXAGE",
+	"WHITHER_ATTRIBUTION_TEXT",
+	"WHITHER_MAX_PATH_LEN",
 }
 
 func clearEnv(t *testing.T) {
@@ -275,6 +278,62 @@ func TestLoad_InvalidCacheDuration(t *testing.T) {
 		{"WHITHER_CACHE_TTL_POSITIVE", "0s"},
 		{"WHITHER_CACHE_TTL_NEGATIVE", "-1h"},
 		{"WHITHER_CACHE_L1_TTL", "abc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key+"="+tc.val, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv("WHITHER_ENV", "development")
+			t.Setenv(tc.key, tc.val)
+			_, err := config.Load()
+			if err == nil {
+				t.Fatalf("expected error for %s=%q", tc.key, tc.val)
+			}
+		})
+	}
+}
+
+func TestLoad_HTTPAPIDefaults(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_USER_AGENT_CONTACT", "test@example.com")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if cfg.ClientCacheMaxAge != 3600 {
+		t.Errorf("ClientCacheMaxAge = %d, want 3600", cfg.ClientCacheMaxAge)
+	}
+	if cfg.AttributionText != "Data from Wikipedia/Wikidata, CC BY-SA / CC0" {
+		t.Errorf("AttributionText = %q", cfg.AttributionText)
+	}
+	if cfg.MaxPathLen != 512 {
+		t.Errorf("MaxPathLen = %d, want 512", cfg.MaxPathLen)
+	}
+}
+
+func TestLoad_HTTPAPIOverrides(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("WHITHER_ENV", "development")
+	t.Setenv("WHITHER_CLIENT_CACHE_MAXAGE", "7200")
+	t.Setenv("WHITHER_MAX_PATH_LEN", "256")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load(): %v", err)
+	}
+	if cfg.ClientCacheMaxAge != 7200 {
+		t.Errorf("ClientCacheMaxAge = %d, want 7200", cfg.ClientCacheMaxAge)
+	}
+	if cfg.MaxPathLen != 256 {
+		t.Errorf("MaxPathLen = %d, want 256", cfg.MaxPathLen)
+	}
+}
+
+func TestLoad_InvalidHTTPAPI(t *testing.T) {
+	cases := []struct{ key, val string }{
+		{"WHITHER_CLIENT_CACHE_MAXAGE", "notanint"},
+		{"WHITHER_CLIENT_CACHE_MAXAGE", "0"},
+		{"WHITHER_MAX_PATH_LEN", "-1"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.key+"="+tc.val, func(t *testing.T) {

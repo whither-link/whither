@@ -65,9 +65,8 @@ func run() error {
 
 	resolver := resolve.NewResolver(cfg, clients.MediaWiki, clients.Wikidata, clients.Articles, c, logger)
 	logger.Info("resolver ready")
-	_ = resolver // TODO: consumed by RFC-005
 
-	router := httpapi.NewRouter(cfg, logger)
+	router := httpapi.NewRouter(cfg, logger, resolver)
 	srv := httpapi.NewServer(cfg, router)
 
 	serveErr := make(chan error, 1)
