@@ -25,14 +25,16 @@ var defaults = map[string]string{
 	"WHITHER_USER_AGENT_CONTACT":       "",
 	"WHITHER_UPSTREAM_TIMEOUT":         "5s",
 	"WHITHER_UPSTREAM_BACKOFF_BASE":    "100ms",
-	"WHITHER_UPSTREAM_MAX_RETRIES":     "3",
-	"WHITHER_UPSTREAM_MAX_CONCURRENCY": "8",
+	"WHITHER_UPSTREAM_MAX_RETRIES":       "1",
+	"WHITHER_UPSTREAM_MAX_CONCURRENCY":   "8",
+	"WHITHER_UPSTREAM_MAX_WAITING":       "64",
+	"WHITHER_UPSTREAM_ACQUIRE_TIMEOUT":   "1s",
 	"WHITHER_REDIS_URL":                "redis://localhost:6379/0",
 	"WHITHER_REDIS_TIMEOUT":            "200ms",
-	"WHITHER_CACHE_TTL_POSITIVE":       "24h",
-	"WHITHER_CACHE_TTL_NEGATIVE":       "2h",
+	"WHITHER_CACHE_TTL_POSITIVE":       "72h",
+	"WHITHER_CACHE_TTL_NEGATIVE":       "12h",
 	"WHITHER_CACHE_LANG":               "en",
-	"WHITHER_CACHE_L1_ENABLED":         "false",
+	"WHITHER_CACHE_L1_ENABLED":         "true",
 	"WHITHER_CACHE_L1_SIZE":            "1024",
 	"WHITHER_CACHE_L1_TTL":             "60s",
 	"WHITHER_CACHE_KEY_PREFIX":         "v1",
@@ -65,14 +67,17 @@ type Config struct {
 	Env             string // "production" | "development"
 
 	// Upstream clients
-	WikiAPIBase            string
-	WikidataAPIBase        string
-	ArticleHTMLBase        string
-	UserAgentContact       string // required in production
-	UpstreamTimeout        time.Duration
-	UpstreamMaxRetries     int
-	UpstreamBackoffBase    time.Duration
-	UpstreamMaxConcurrency int
+	WikiAPIBase             string
+	WikidataAPIBase         string
+	ArticleHTMLBase         string
+	UserAgentContact        string // required in production
+	Version                 string // stamped at build time; defaults to "dev"
+	UpstreamTimeout         time.Duration
+	UpstreamMaxRetries      int
+	UpstreamBackoffBase     time.Duration
+	UpstreamMaxConcurrency  int
+	UpstreamMaxWaiting      int
+	UpstreamAcquireTimeout  time.Duration
 
 	// Resolver
 	WikiArticleBase string
@@ -152,6 +157,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if cfg.UpstreamMaxConcurrency, err = parseInt("WHITHER_UPSTREAM_MAX_CONCURRENCY"); err != nil {
+		return nil, err
+	}
+	if cfg.UpstreamMaxWaiting, err = parseInt("WHITHER_UPSTREAM_MAX_WAITING"); err != nil {
+		return nil, err
+	}
+	if cfg.UpstreamAcquireTimeout, err = parseDuration("WHITHER_UPSTREAM_ACQUIRE_TIMEOUT"); err != nil {
 		return nil, err
 	}
 

@@ -24,6 +24,8 @@ func testConfig(t *testing.T, apiBase string) *config.Config {
 		UpstreamMaxRetries:     0, // no retries in unit tests
 		UpstreamBackoffBase:    time.Millisecond,
 		UpstreamMaxConcurrency: 4,
+		UpstreamMaxWaiting:     64,
+		UpstreamAcquireTimeout: time.Second,
 		Env:                    "development",
 	}
 }

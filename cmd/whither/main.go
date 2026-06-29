@@ -34,6 +34,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("configuration: %w", err)
 	}
+	cfg.Version = version
 
 	logger := observ.NewLogger(cfg)
 	slog.SetDefault(logger)

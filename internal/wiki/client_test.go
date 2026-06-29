@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -194,4 +195,117 @@ func TestConcurrencyLimiter_CapsInflightRequests(t *testing.T) {
 			t.Errorf("goroutine error: %v", err)
 		}
 	}
+}
+
+// --- Semaphore admission control ----------------------------------------
+
+// TestSemaphore_ShedsWhenQueueFull asserts that once maxWaiting goroutines are
+// parked waiting for a slot, the next acquire returns ErrUpstreamUnavailable
+// immediately without blocking.
+func TestSemaphore_ShedsWhenQueueFull(t *testing.T) {
+	const slots = 2
+	const maxWaiting = 3
+
+	slow := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-slow
+		body := readFixture(t, "mediawiki-normalize-found.json")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	cfg := testConfig(t, srv.URL)
+	cfg.UpstreamMaxConcurrency = slots
+	cfg.UpstreamMaxWaiting = maxWaiting
+	cfg.UpstreamAcquireTimeout = 5 * time.Second // long — we test queue shed, not timeout
+	cfg.UpstreamMaxRetries = 0
+	clients := wiki.NewClients(cfg, wiki.WithSleepFn(noSleep))
+
+	// Fill all slots.
+	var slotWG sync.WaitGroup
+	for range slots {
+		slotWG.Add(1)
+		go func() {
+			slotWG.Done()
+			clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck
+		}()
+	}
+	slotWG.Wait()
+	time.Sleep(20 * time.Millisecond) // let slot-holders reach the handler
+
+	// Fill the waiting queue.
+	var queueWG sync.WaitGroup
+	for range maxWaiting {
+		queueWG.Add(1)
+		go func() {
+			queueWG.Done()
+			clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck
+		}()
+	}
+	queueWG.Wait()
+	time.Sleep(20 * time.Millisecond) // let waiters park in acquire
+
+	// Next caller must be shed immediately.
+	start := time.Now()
+	_, err := clients.MediaWiki.Normalize(context.Background(), "test")
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, wiki.ErrUpstreamUnavailable) {
+		t.Errorf("err = %v, want ErrUpstreamUnavailable", err)
+	}
+	if elapsed > 200*time.Millisecond {
+		t.Errorf("shed took %v, want near-instant (<200ms)", elapsed)
+	}
+
+	close(slow) // release everything
+}
+
+// TestSemaphore_ShedsAfterAcquireTimeout asserts that a waiter that never gets
+// a slot returns ErrUpstreamUnavailable once the acquire timeout fires.
+func TestSemaphore_ShedsAfterAcquireTimeout(t *testing.T) {
+	const acquireTO = 50 * time.Millisecond
+
+	slow := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-slow
+		body := readFixture(t, "mediawiki-normalize-found.json")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	cfg := testConfig(t, srv.URL)
+	cfg.UpstreamMaxConcurrency = 1
+	cfg.UpstreamMaxWaiting = 10
+	cfg.UpstreamAcquireTimeout = acquireTO
+	cfg.UpstreamMaxRetries = 0
+	clients := wiki.NewClients(cfg, wiki.WithSleepFn(noSleep))
+
+	// Hold the single slot.
+	var ready sync.WaitGroup
+	ready.Add(1)
+	go func() {
+		ready.Done()
+		clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck
+	}()
+	ready.Wait()
+	time.Sleep(20 * time.Millisecond)
+
+	// This call must shed after acquireTO.
+	start := time.Now()
+	_, err := clients.MediaWiki.Normalize(context.Background(), "test")
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, wiki.ErrUpstreamUnavailable) {
+		t.Errorf("err = %v, want ErrUpstreamUnavailable", err)
+	}
+	if elapsed < acquireTO {
+		t.Errorf("shed in %v, want ≥ %v (acquireTO)", elapsed, acquireTO)
+	}
+	if elapsed > acquireTO*5 {
+		t.Errorf("shed in %v, suspiciously slow (want < %v)", elapsed, acquireTO*5)
+	}
+
+	close(slow)
 }

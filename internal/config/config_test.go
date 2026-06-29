@@ -26,6 +26,8 @@ var allVars = []string{
 	"WHITHER_UPSTREAM_MAX_RETRIES",
 	"WHITHER_UPSTREAM_BACKOFF_BASE",
 	"WHITHER_UPSTREAM_MAX_CONCURRENCY",
+	"WHITHER_UPSTREAM_MAX_WAITING",
+	"WHITHER_UPSTREAM_ACQUIRE_TIMEOUT",
 	"WHITHER_WIKI_ARTICLE_BASE",
 	"WHITHER_WIKI_SEARCH_BASE",
 	"WHITHER_OPENSEARCH_LIMIT",
@@ -86,6 +88,25 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.Env != "production" {
 		t.Errorf("Env = %q, want production", cfg.Env)
+	}
+
+	if cfg.UpstreamMaxRetries != 1 {
+		t.Errorf("UpstreamMaxRetries = %d, want 1", cfg.UpstreamMaxRetries)
+	}
+	if cfg.UpstreamMaxWaiting != 64 {
+		t.Errorf("UpstreamMaxWaiting = %d, want 64", cfg.UpstreamMaxWaiting)
+	}
+	if cfg.UpstreamAcquireTimeout != time.Second {
+		t.Errorf("UpstreamAcquireTimeout = %v, want 1s", cfg.UpstreamAcquireTimeout)
+	}
+	if !cfg.CacheL1Enabled {
+		t.Error("CacheL1Enabled = false, want true")
+	}
+	if cfg.CacheTTLPositive != 72*time.Hour {
+		t.Errorf("CacheTTLPositive = %v, want 72h", cfg.CacheTTLPositive)
+	}
+	if cfg.CacheTTLNegative != 12*time.Hour {
+		t.Errorf("CacheTTLNegative = %v, want 12h", cfg.CacheTTLNegative)
 	}
 }
 
@@ -235,17 +256,17 @@ func TestLoad_CacheDefaults(t *testing.T) {
 	if cfg.RedisTimeout != 200*time.Millisecond {
 		t.Errorf("RedisTimeout = %v, want 200ms", cfg.RedisTimeout)
 	}
-	if cfg.CacheTTLPositive != 24*time.Hour {
-		t.Errorf("CacheTTLPositive = %v, want 24h", cfg.CacheTTLPositive)
+	if cfg.CacheTTLPositive != 72*time.Hour {
+		t.Errorf("CacheTTLPositive = %v, want 72h", cfg.CacheTTLPositive)
 	}
-	if cfg.CacheTTLNegative != 2*time.Hour {
-		t.Errorf("CacheTTLNegative = %v, want 2h", cfg.CacheTTLNegative)
+	if cfg.CacheTTLNegative != 12*time.Hour {
+		t.Errorf("CacheTTLNegative = %v, want 12h", cfg.CacheTTLNegative)
 	}
 	if cfg.CacheLang != "en" {
 		t.Errorf("CacheLang = %q, want en", cfg.CacheLang)
 	}
-	if cfg.CacheL1Enabled {
-		t.Error("CacheL1Enabled should default to false")
+	if !cfg.CacheL1Enabled {
+		t.Error("CacheL1Enabled should default to true")
 	}
 	if cfg.CacheL1Size != 1024 {
 		t.Errorf("CacheL1Size = %d, want 1024", cfg.CacheL1Size)

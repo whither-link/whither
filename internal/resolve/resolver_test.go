@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -356,6 +358,97 @@ func TestResolver_URLDecodeBeforeLookup(t *testing.T) {
 	if got.Location != "https://annas-archive.org" {
 		t.Errorf("Location = %q", got.Location)
 	}
+}
+
+// --- singleflight tests -------------------------------------------------------
+
+// blockingMW blocks on a channel so the test can control when Normalize returns.
+type blockingMW struct {
+	unblock     chan struct{}
+	result      wiki.PageInfo
+	err         error
+	callCount   atomic.Int64
+}
+
+func (b *blockingMW) Normalize(_ context.Context, _ string) (wiki.PageInfo, error) {
+	b.callCount.Add(1)
+	<-b.unblock
+	return b.result, b.err
+}
+
+func (b *blockingMW) OpenSearch(_ context.Context, _ string, _ int) ([]string, error) {
+	return nil, nil
+}
+
+// TestResolver_Singleflight_CoalescesUpstreamCalls asserts that N concurrent
+// cold requests for the same title produce exactly one upstream Normalize call.
+func TestResolver_Singleflight_CoalescesUpstreamCalls(t *testing.T) {
+	const n = 10
+	bMW := &blockingMW{
+		unblock: make(chan struct{}),
+		result:  wiki.PageInfo{CanonicalTitle: "Golang", QID: "Q37227"},
+	}
+	wd := &fakeWD{sites: []wiki.OfficialSite{{URL: "https://go.dev", Rank: "normal"}}}
+	r := testResolver(bMW, wd, newCache())
+
+	var wg sync.WaitGroup
+	results := make([]Result, n)
+	errs := make([]error, n)
+	for i := range n {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			results[i], errs[i] = r.Resolve(context.Background(), "Golang", false)
+		}(i)
+	}
+
+	// Give goroutines time to park inside the singleflight group.
+	time.Sleep(20 * time.Millisecond)
+	close(bMW.unblock) // release the leader
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("goroutine %d: unexpected error: %v", i, err)
+		}
+	}
+	for i, res := range results {
+		if res.Location != "https://go.dev" {
+			t.Errorf("goroutine %d: Location = %q, want https://go.dev", i, res.Location)
+		}
+	}
+	if got := bMW.callCount.Load(); got != 1 {
+		t.Errorf("upstream Normalize called %d times, want 1", got)
+	}
+}
+
+// TestResolver_Singleflight_CancelledFollowerReturnsCtxErr asserts that a follower
+// whose context is cancelled returns ctx.Err() without waiting for the leader.
+func TestResolver_Singleflight_CancelledFollowerReturnsCtxErr(t *testing.T) {
+	bMW := &blockingMW{
+		unblock: make(chan struct{}),
+		result:  wiki.PageInfo{CanonicalTitle: "Golang", QID: "Q37227"},
+	}
+	r := testResolver(bMW, &fakeWD{}, newCache())
+
+	// Leader goroutine — runs and blocks.
+	leaderDone := make(chan struct{})
+	go func() {
+		defer close(leaderDone)
+		r.Resolve(context.Background(), "Golang", false) //nolint:errcheck
+	}()
+	time.Sleep(10 * time.Millisecond)
+
+	// Follower with a pre-cancelled context.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := r.Resolve(ctx, "Golang", false)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("follower err = %v, want context.Canceled", err)
+	}
+
+	close(bMW.unblock)
+	<-leaderDone
 }
 
 // --- sequentialMW calls Normalize in order for multi-call tests --------------

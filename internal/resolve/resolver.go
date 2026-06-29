@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/url"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/whither-link/whither/internal/cache"
 	"github.com/whither-link/whither/internal/config"
 	"github.com/whither-link/whither/internal/wiki"
@@ -20,6 +22,7 @@ type resolver struct {
 	cache    cache.Cache
 	cfg      *config.Config
 	log      *slog.Logger
+	group    singleflight.Group
 }
 
 // NewResolver constructs a Resolver wired to the provided upstream clients and cache.
@@ -32,6 +35,12 @@ func NewResolver(cfg *config.Config, mw wiki.MediaWikiClient, wd wiki.WikidataCl
 		cfg:      cfg,
 		log:      log,
 	}
+}
+
+// sfResult carries the cold-path outcome through the singleflight group.
+type sfResult struct {
+	res Result
+	err error
 }
 
 // Resolve turns a raw URL path segment into a validated redirect target.
@@ -52,16 +61,29 @@ func (r *resolver) Resolve(ctx context.Context, rawPath string, fresh bool) (Res
 		}
 	}
 
-	// F1: authoritative title normalization via MediaWiki.
+	// Cold path: coalesce concurrent requests for the same key.
+	ch := r.group.DoChan(key, func() (any, error) {
+		res, err := r.resolveCold(ctx, key, title)
+		return sfResult{res, err}, nil // error carried inside value; DoChan error is always nil
+	})
+	select {
+	case <-ctx.Done():
+		return Result{}, ctx.Err()
+	case out := <-ch:
+		sr := out.Val.(sfResult)
+		return sr.res, sr.err
+	}
+}
+
+// resolveCold performs the full upstream resolution chain for a cache-cold title.
+func (r *resolver) resolveCold(ctx context.Context, key, title string) (Result, error) {
 	page, err := r.mw.Normalize(ctx, title)
 	if err != nil {
 		switch {
 		case errors.Is(err, wiki.ErrDisambiguation):
-			// F19: disambiguation pages have no single official site.
 			// page.CanonicalTitle is valid even when ErrDisambiguation is returned.
 			return r.finalize(ctx, key, r.articleURL(page.CanonicalTitle), ViaFallback, "", false)
 		case errors.Is(err, wiki.ErrNotFound):
-			// F5: try opensearch to find the closest article.
 			return r.tryOpenSearch(ctx, key, title)
 		case errors.Is(err, wiki.ErrUpstreamUnavailable):
 			return Result{}, ErrUpstreamUnavailable
@@ -73,11 +95,11 @@ func (r *resolver) Resolve(ctx context.Context, rawPath string, fresh bool) (Res
 	return r.resolveWithPage(ctx, key, page)
 }
 
-// tryOpenSearch handles the missing-page branch (F5).
+// tryOpenSearch handles the missing-page branch.
 func (r *resolver) tryOpenSearch(ctx context.Context, key, title string) (Result, error) {
 	cands, err := r.mw.OpenSearch(ctx, title, r.cfg.OpenSearchLimit)
 	if err != nil || len(cands) == 0 {
-		// F6: no candidates → fall back to search results page.
+		// no candidates → fall back to search results page.
 		return r.finalize(ctx, key, r.searchURL(title), ViaFallback, "", false)
 	}
 	page, err := r.mw.Normalize(ctx, cands[0])
@@ -92,7 +114,7 @@ func (r *resolver) tryOpenSearch(ctx context.Context, key, title string) (Result
 
 // resolveWithPage runs the P856 → infobox → article-fallback chain for a known page.
 func (r *resolver) resolveWithPage(ctx context.Context, key string, page wiki.PageInfo) (Result, error) {
-	// F2: Wikidata P856 lookup.
+	// Wikidata P856 lookup.
 	if page.QID != "" {
 		sites, err := r.wd.OfficialWebsites(ctx, page.QID)
 		switch {
@@ -109,7 +131,7 @@ func (r *resolver) resolveWithPage(ctx context.Context, key string, page wiki.Pa
 		}
 	}
 
-	// F4: infobox scrape (stubbed; cfg.InfoboxEnabled will gate this once implemented).
+	// infobox scrape (stubbed; cfg.InfoboxEnabled will gate this once implemented).
 	if r.cfg.InfoboxEnabled {
 		html, err := r.articles.FetchHTML(ctx, page.CanonicalTitle)
 		if err == nil {
@@ -121,12 +143,11 @@ func (r *resolver) resolveWithPage(ctx context.Context, key string, page wiki.Pa
 		}
 	}
 
-	// F6: article-page fallback.
+	// article-page fallback.
 	return r.finalize(ctx, key, r.articleURL(page.CanonicalTitle), ViaFallback, page.QID, false)
 }
 
-// finalize is the single F22 chokepoint: every candidate target passes through
-// validateTarget here before being cached and returned. On validation failure the
+// every candidate target passes through validateTarget here before being cached and returned. On validation failure the
 // engine degrades to cfg.WikiArticleBase and marks the result as a negative entry.
 func (r *resolver) finalize(ctx context.Context, key, u string, via ResolvedVia, qid string, positive bool) (Result, error) {
 	if err := validateTarget(u); err != nil {

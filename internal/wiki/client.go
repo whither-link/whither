@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand/v2"
 	"net"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/whither-link/whither/internal/config"
@@ -16,32 +18,65 @@ import (
 // sleepFunc is injectable so tests can skip real sleeps.
 type sleepFunc func(ctx context.Context, d time.Duration) error
 
-// semaphore caps the number of concurrent upstream requests using a buffered channel.
-type semaphore chan struct{}
-
-func newSemaphore(n int) semaphore {
-	return make(semaphore, n)
+// semaphore caps concurrent upstream requests and bounds the waiting queue to
+// prevent unbounded goroutine/heap growth under a cold traffic flood.
+//
+// With MaxConcurrency=8 and ~1–3 s per cold resolution, draining 8 slots takes
+// ~1–3 s; maxWaiting=64 caps parked goroutines to a small bounded set and gives
+// an effective admitted backlog of a few seconds — past that we shed fast rather
+// than pile up. acquireTO=1s keeps a single waiter's tail latency bounded so a
+// request making up to ~4 sequential upstream calls stays under WriteTimeout.
+type semaphore struct {
+	slots      chan struct{}
+	waiting    int64 // atomic: goroutines currently parked waiting for a slot
+	maxWaiting int64
+	acquireTO  time.Duration
 }
 
-func (s semaphore) acquire(ctx context.Context) error {
+func newSemaphore(n, maxWaiting int, acquireTO time.Duration) *semaphore {
+	return &semaphore{
+		slots:      make(chan struct{}, n),
+		maxWaiting: int64(maxWaiting),
+		acquireTO:  acquireTO,
+	}
+}
+
+func (s *semaphore) acquire(ctx context.Context) error {
+	// Fast path: a slot is free right now.
 	select {
-	case s <- struct{}{}:
+	case s.slots <- struct{}{}:
 		return nil
+	default:
+	}
+	// Admission control: refuse to queue past maxWaiting.
+	if atomic.AddInt64(&s.waiting, 1) > s.maxWaiting {
+		atomic.AddInt64(&s.waiting, -1)
+		slog.Warn("upstream semaphore shed: queue full")
+		return ErrUpstreamUnavailable
+	}
+	defer atomic.AddInt64(&s.waiting, -1)
+
+	t := time.NewTimer(s.acquireTO)
+	defer t.Stop()
+	select {
+	case s.slots <- struct{}{}:
+		return nil
+	case <-t.C:
+		slog.Warn("upstream semaphore shed: acquire timeout")
+		return ErrUpstreamUnavailable
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 }
 
-func (s semaphore) release() {
-	<-s
-}
+func (s *semaphore) release() { <-s.slots }
 
 // baseClient holds the shared HTTP transport, UA string, semaphore, and retry policy
 // used by all three Wikimedia client types.
 type baseClient struct {
 	hc          *http.Client
 	userAgent   string
-	sem         semaphore
+	sem         *semaphore
 	maxRetries  int
 	backoffBase time.Duration
 	sleep       sleepFunc
@@ -67,13 +102,17 @@ func newBaseClient(cfg *config.Config, opts ...Option) *baseClient {
 		MaxIdleConnsPerHost:   10,
 		IdleConnTimeout:       90 * time.Second,
 	}
+	v := cfg.Version
+	if v == "" || v == "dev" {
+		v = "1.0"
+	}
 	bc := &baseClient{
 		hc: &http.Client{
 			Transport: transport,
 			Timeout:   cfg.UpstreamTimeout + 5*time.Second,
 		},
-		userAgent:   fmt.Sprintf("Whither/dev (+%s)", cfg.UserAgentContact),
-		sem:         newSemaphore(cfg.UpstreamMaxConcurrency),
+		userAgent:   fmt.Sprintf("Whither/%s (+https://whither.link; %s)", v, cfg.UserAgentContact),
+		sem:         newSemaphore(cfg.UpstreamMaxConcurrency, cfg.UpstreamMaxWaiting, cfg.UpstreamAcquireTimeout),
 		maxRetries:  cfg.UpstreamMaxRetries,
 		backoffBase: cfg.UpstreamBackoffBase,
 		sleep:       realSleep,
@@ -89,7 +128,10 @@ func newBaseClient(cfg *config.Config, opts ...Option) *baseClient {
 // attempts. Callers must close the returned response body.
 func (c *baseClient) do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if err := c.sem.acquire(ctx); err != nil {
-		return nil, fmt.Errorf("acquire semaphore: %w", err)
+		// ErrUpstreamUnavailable returned bare (shed path) so errors.Is holds
+		// up the call chain and triggers stale-serve / 503. ctx.Err() is
+		// returned as-is; client already gone, response is moot.
+		return nil, err
 	}
 	defer c.sem.release()
 
