@@ -54,27 +54,3 @@ jobs:
 
       - name: Print image digest
         run: echo "Pushed ${{ steps.meta.outputs.tags }} digest=${{ steps.push.outputs.digest }}"
-
-  trigger-deploy:
-    name: Trigger infra deploy
-    needs: build-push
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Dispatch deploy workflow in whither-link/infra
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.INFRA_DISPATCH_TOKEN }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: 'whither-link',
-              repo: 'infra',
-              workflow_id: 'deploy.yml',
-              ref: 'main',
-              inputs: {
-                image: 'ghcr.io/whither-link/whither@${{ needs.build-push.outputs.digest }}'
-              }
-            });
-            console.log('Triggered infra deploy with digest ${{ needs.build-push.outputs.digest }}');
