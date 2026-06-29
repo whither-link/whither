@@ -364,10 +364,10 @@ func TestResolver_URLDecodeBeforeLookup(t *testing.T) {
 
 // blockingMW blocks on a channel so the test can control when Normalize returns.
 type blockingMW struct {
-	unblock     chan struct{}
-	result      wiki.PageInfo
-	err         error
-	callCount   atomic.Int64
+	unblock   chan struct{}
+	result    wiki.PageInfo
+	err       error
+	callCount atomic.Int64
 }
 
 func (b *blockingMW) Normalize(_ context.Context, _ string) (wiki.PageInfo, error) {

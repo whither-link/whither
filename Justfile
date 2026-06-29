@@ -39,6 +39,11 @@ fmt-check:
         exit 1
     fi
 
+fmt:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{_run}} {{go_image}} gofmt -w .
+
 check: vet lint fmt-check test
 
 # Spin up a throwaway Redis container, run integration-tagged tests, then tear it down.
