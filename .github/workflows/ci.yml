@@ -38,7 +38,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.12.2
 
       - name: hadolint (Containerfile)
         if: |
