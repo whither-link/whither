@@ -3,9 +3,10 @@ name: Release
 on:
   push:
     branches: [main]
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
 
 permissions:
-  contents: read
+  contents: write   # read on branches; write needed for gh release create on tags
   packages: write
 
 jobs:
@@ -17,6 +18,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute version string
+        id: ver
+        run: |
+          ref="${{ github.ref_name }}"
+          if [[ "$ref" == v* ]]; then
+            echo "value=${ref#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=sha-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -34,6 +45,8 @@ jobs:
         with:
           images: ghcr.io/whither-link/whither
           tags: |
+            type=semver,pattern=v{{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
 
@@ -47,10 +60,27 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=sha-${{ github.sha }}
+            VERSION=${{ steps.ver.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
       - name: Print image digest
         run: echo "Pushed ${{ steps.meta.outputs.tags }} digest=${{ steps.push.outputs.digest }}"
+
+  github-release:
+    name: Create GitHub Release
+    needs: build-push
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create release with auto-generated notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
