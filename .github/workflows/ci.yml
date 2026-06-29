@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check gofmt
+        run: |
+          result=$(gofmt -l .)
+          if [[ -n "$result" ]]; then
+            printf 'Unformatted files:\n%s\n' "$result" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go mod tidy check
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: hadolint (Containerfile)
+        if: |
+          github.event_name == 'push' ||
+          contains(toJson(github.event.pull_request.changed_files), 'Containerfile')
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Containerfile
+
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run unit tests with race detector
+        run: go test -short -race -coverprofile=coverage.out ./...
+
+      - name: Enforce coverage floor on resolve + cache packages
+        run: |
+          floor=70
+          for pkg in internal/resolve internal/cache; do
+            pct=$(go tool cover -func=coverage.out \
+              | grep "github.com/whither-link/whither/${pkg}" \
+              | awk '{print $NF}' \
+              | grep -v '^$' \
+              | sed 's/%//' \
+              | awk '{s+=$1; n++} END {if(n>0) printf "%.1f", s/n; else print "0"}')
+            echo "${pkg}: ${pct}% (floor: ${floor}%)"
+            if awk "BEGIN {exit !(${pct} < ${floor})}"; then
+              echo "ERROR: coverage for ${pkg} is ${pct}%, below the ${floor}% floor" >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run integration tests
+        env:
+          WHITHER_REDIS_URL: redis://localhost:6379/0
+        run: go test -tags=integration -count=1 -race ./...
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

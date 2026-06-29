@@ -1,0 +1,28 @@
+name: Live tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every Sunday at 06:00 UTC.
+    - cron: "0 6 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  live-tests:
+    name: Curated correctness suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run live tests
+        env:
+          WHITHER_USER_AGENT_CONTACT: ci-live@whither.link
+        run: go test -tags=live -v -timeout=120s ./internal/resolve/...

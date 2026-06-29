@@ -19,6 +19,9 @@ import (
 	"github.com/whither-link/whither/internal/wiki"
 )
 
+// version is stamped at build time via -ldflags "-X main.version=<value>".
+var version = "dev"
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "whither: %v\n", err)
@@ -71,7 +74,7 @@ func run() error {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		logger.Info("server starting", slog.String("addr", cfg.Addr), slog.String("env", cfg.Env))
+		logger.Info("server starting", slog.String("addr", cfg.Addr), slog.String("env", cfg.Env), slog.String("version", version))
 		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			serveErr <- err
 		}

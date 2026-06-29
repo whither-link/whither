@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build & push image
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/whither-link/whither
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Containerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Print image digest
+        run: echo "Pushed ${{ steps.meta.outputs.tags }} digest=${{ steps.push.outputs.digest }}"
+
+  trigger-deploy:
+    name: Trigger infra deploy
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Dispatch deploy workflow in whither-link/infra
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.INFRA_DISPATCH_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'whither-link',
+              repo: 'infra',
+              workflow_id: 'deploy.yml',
+              ref: 'main',
+              inputs: {
+                image: 'ghcr.io/whither-link/whither@${{ needs.build-push.outputs.digest }}'
+              }
+            });
+            console.log('Triggered infra deploy with digest ${{ needs.build-push.outputs.digest }}');

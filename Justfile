@@ -1,8 +1,8 @@
-go_version   := "1.24"
-go_image     := "docker.io/library/golang:" + go_version
-lint_image   := "docker.io/golangci/golangci-lint:latest"
-redis_image  := "docker.io/library/redis:7-alpine"
-binary     := "bin/whither"
+go_version  := "1.24"
+go_image    := "docker.io/library/golang:" + go_version
+lint_image  := "docker.io/golangci/golangci-lint:latest"
+redis_image := "docker.io/library/redis:7-alpine"
+binary      := "bin/whither"
 
 _run := "podman run --rm --userns=keep-id --security-opt label=disable -v .:/workspace -w /workspace"
 
