@@ -14,6 +14,22 @@ func newFake(clockFn func() time.Time) *cache.FakeCache {
 	return cache.NewFakeCache(time.Hour, 30*time.Minute, clockFn)
 }
 
+func TestKey(t *testing.T) {
+	cases := []struct {
+		prefix, lang, title, want string
+	}{
+		{"v1", "en", "bbc", "v1:en:bbc"},
+		{"v2", "fr", "le_monde", "v2:fr:le_monde"},
+		{"", "", "", "::"},
+	}
+	for _, tc := range cases {
+		got := cache.Key(tc.prefix, tc.lang, tc.title)
+		if got != tc.want {
+			t.Errorf("Key(%q,%q,%q) = %q, want %q", tc.prefix, tc.lang, tc.title, got, tc.want)
+		}
+	}
+}
+
 func TestFakeCache_MissOnEmpty(t *testing.T) {
 	c := newFake(nil)
 	_, ok, err := c.Get(bg, "k")

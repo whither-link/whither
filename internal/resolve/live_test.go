@@ -59,8 +59,8 @@ func liveResolver(t *testing.T) resolve.Resolver {
 
 // entity is one entry in the curated correctness set.
 type entity struct {
-	article       string // Wikipedia article name (URL-encoded where needed)
-	wantDomains   []string // accepted substrings in the resolved URL
+	article     string   // Wikipedia article name (URL-encoded where needed)
+	wantDomains []string // accepted substrings in the resolved URL
 }
 
 var curatedSet = []entity{
