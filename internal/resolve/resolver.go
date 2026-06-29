@@ -57,7 +57,7 @@ func (r *resolver) Resolve(ctx context.Context, rawPath string, fresh bool) (Res
 
 	if !fresh {
 		if entry, ok, _ := r.cache.Get(ctx, key); ok {
-			return fromEntry(entry), nil
+			return fromEntry(&entry), nil
 		}
 	}
 
@@ -163,7 +163,7 @@ func (r *resolver) finalize(ctx context.Context, key, u string, via ResolvedVia,
 		QID:         qid,
 		Positive:    positive,
 	}
-	_ = r.cache.Set(ctx, key, entry)
+	_ = r.cache.Set(ctx, key, &entry)
 	return Result{
 		Location:    u,
 		ResolvedVia: via,
@@ -184,7 +184,7 @@ func (r *resolver) GetStale(ctx context.Context, rawPath string) (Result, bool, 
 	if !ok {
 		return Result{}, false, nil
 	}
-	return fromEntry(entry), true, nil
+	return fromEntry(&entry), true, nil
 }
 
 func (r *resolver) articleURL(title string) string {
@@ -196,7 +196,7 @@ func (r *resolver) searchURL(query string) string {
 }
 
 // fromEntry converts a cache.Entry into a Result for serving.
-func fromEntry(e cache.Entry) Result {
+func fromEntry(e *cache.Entry) Result {
 	return Result{
 		Location:    e.URL,
 		ResolvedVia: ResolvedVia(e.ResolvedVia),

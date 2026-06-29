@@ -45,7 +45,7 @@ func TestRedisCache_RoundTrip(t *testing.T) {
 	}
 
 	_ = c.Delete(bg, key)
-	if err := c.Set(bg, key, e); err != nil {
+	if err := c.Set(bg, key, &e); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 
@@ -79,7 +79,7 @@ func TestRedisCache_Delete(t *testing.T) {
 	c := newTestRedisCache(t)
 	key := cache.Key("test", "en", "DeleteTest_RFC003")
 
-	_ = c.Set(bg, key, cache.Entry{URL: "https://example.com", Positive: true})
+	_ = c.Set(bg, key, &cache.Entry{URL: "https://example.com", Positive: true})
 	if err := c.Delete(bg, key); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
@@ -98,8 +98,8 @@ func TestRedisCache_PositiveAndNegativeEntriesRoundTrip(t *testing.T) {
 	_ = c.Delete(bg, posKey)
 	_ = c.Delete(bg, negKey)
 
-	_ = c.Set(bg, posKey, cache.Entry{URL: "https://example.com", Positive: true})
-	_ = c.Set(bg, negKey, cache.Entry{URL: "https://en.wikipedia.org/wiki/Foo", Positive: false})
+	_ = c.Set(bg, posKey, &cache.Entry{URL: "https://example.com", Positive: true})
+	_ = c.Set(bg, negKey, &cache.Entry{URL: "https://en.wikipedia.org/wiki/Foo", Positive: false})
 
 	_, posOK, _ := c.Get(bg, posKey)
 	_, negOK, _ := c.Get(bg, negKey)

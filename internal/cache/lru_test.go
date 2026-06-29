@@ -20,7 +20,7 @@ func TestTwoLevel_SetGet(t *testing.T) {
 	l2 := newFake(nil)
 	tl := newTwoLevel(t, l2, time.Minute, nil)
 	e := cache.Entry{URL: "https://example.com", Positive: true}
-	_ = tl.Set(bg, "k", e)
+	_ = tl.Set(bg, "k", &e)
 	got, ok, _ := tl.Get(bg, "k")
 	if !ok || got.URL != e.URL {
 		t.Fatalf("Get: ok=%v url=%q", ok, got.URL)
@@ -32,7 +32,7 @@ func TestTwoLevel_L1HitAvoidsL2(t *testing.T) {
 	tl := newTwoLevel(t, l2, time.Minute, nil)
 	e := cache.Entry{URL: "https://example.com", Positive: true}
 
-	_ = tl.Set(bg, "k", e) // writes to both L1 and L2
+	_ = tl.Set(bg, "k", &e) // writes to both L1 and L2
 
 	_ = l2.Delete(bg, "k") // remove from L2 behind TwoLevel's back
 
@@ -46,7 +46,7 @@ func TestTwoLevel_L1HitAvoidsL2(t *testing.T) {
 func TestTwoLevel_L2HitPopulatesL1(t *testing.T) {
 	l2 := newFake(nil)
 	e := cache.Entry{URL: "https://example.com", Positive: true}
-	_ = l2.Set(bg, "k", e) // seed L2 directly
+	_ = l2.Set(bg, "k", &e) // seed L2 directly
 
 	tl := newTwoLevel(t, l2, time.Minute, nil)
 
@@ -67,7 +67,7 @@ func TestTwoLevel_L2HitPopulatesL1(t *testing.T) {
 func TestTwoLevel_DeleteClearsBothLevels(t *testing.T) {
 	l2 := newFake(nil)
 	tl := newTwoLevel(t, l2, time.Minute, nil)
-	_ = tl.Set(bg, "k", cache.Entry{URL: "https://example.com", Positive: true})
+	_ = tl.Set(bg, "k", &cache.Entry{URL: "https://example.com", Positive: true})
 	_ = tl.Delete(bg, "k")
 
 	if _, ok, _ := tl.Get(bg, "k"); ok {
@@ -86,7 +86,7 @@ func TestTwoLevel_L1TTLCeiling(t *testing.T) {
 	l1TTL := 10 * time.Second
 	tl := newTwoLevel(t, l2, l1TTL, clockFn)
 
-	_ = tl.Set(bg, "k", cache.Entry{URL: "https://example.com", Positive: true})
+	_ = tl.Set(bg, "k", &cache.Entry{URL: "https://example.com", Positive: true})
 
 	// Within L1 TTL
 	now = now.Add(5 * time.Second)

@@ -48,16 +48,17 @@ func (f *FakeCache) Get(_ context.Context, key string) (Entry, bool, error) {
 }
 
 // Set implements [Cache].
-func (f *FakeCache) Set(_ context.Context, key string, e Entry) error {
+func (f *FakeCache) Set(_ context.Context, key string, e *Entry) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	now := f.clockFn()
-	e.StoredAt = now
+	cp := *e
+	cp.StoredAt = now
 	ttl := f.ttlNeg
-	if e.Positive {
+	if cp.Positive {
 		ttl = f.ttlPos
 	}
-	f.entries[key] = fakeEntry{entry: e, expiresAt: now.Add(ttl)}
+	f.entries[key] = fakeEntry{entry: cp, expiresAt: now.Add(ttl)}
 	return nil
 }
 

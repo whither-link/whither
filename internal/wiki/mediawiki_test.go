@@ -39,7 +39,7 @@ func readFixture(t *testing.T, name string) []byte {
 	return b
 }
 
-func fixtureHandler(t *testing.T, fixture string, contentType string) http.Handler {
+func fixtureHandler(t *testing.T, fixture, contentType string) http.Handler {
 	t.Helper()
 	body := readFixture(t, fixture)
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

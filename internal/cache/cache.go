@@ -19,7 +19,7 @@ type Entry struct {
 // Cache is the storage abstraction for resolved redirect targets.
 type Cache interface {
 	Get(ctx context.Context, key string) (Entry, bool, error)
-	Set(ctx context.Context, key string, e Entry) error
+	Set(ctx context.Context, key string, e *Entry) error
 	Delete(ctx context.Context, key string) error
 }
 

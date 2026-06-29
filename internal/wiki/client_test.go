@@ -228,7 +228,7 @@ func TestSemaphore_ShedsWhenQueueFull(t *testing.T) {
 		slotWG.Add(1)
 		go func() {
 			slotWG.Done()
-			clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck
+			clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck // return value intentionally dropped in goroutine
 		}()
 	}
 	slotWG.Wait()
@@ -240,7 +240,7 @@ func TestSemaphore_ShedsWhenQueueFull(t *testing.T) {
 		queueWG.Add(1)
 		go func() {
 			queueWG.Done()
-			clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck
+			clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck // return value intentionally dropped in goroutine
 		}()
 	}
 	queueWG.Wait()
@@ -287,7 +287,7 @@ func TestSemaphore_ShedsAfterAcquireTimeout(t *testing.T) {
 	ready.Add(1)
 	go func() {
 		ready.Done()
-		clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck
+		clients.MediaWiki.Normalize(context.Background(), "test") //nolint:errcheck // return value intentionally dropped in goroutine
 	}()
 	ready.Wait()
 	time.Sleep(20 * time.Millisecond)

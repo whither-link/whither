@@ -44,8 +44,6 @@ func run() error {
 		slog.String("wiki_api", cfg.WikiAPIBase),
 		slog.String("wikidata_api", cfg.WikidataAPIBase),
 	)
-	_ = clients // TODO
-
 	redisCache, err := cache.NewRedisCache(
 		cfg.RedisURL,
 		cfg.CacheTTLPositive,

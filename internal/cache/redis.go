@@ -60,17 +60,18 @@ func (c *RedisCache) Get(ctx context.Context, key string) (Entry, bool, error) {
 }
 
 // Set implements [Cache].
-func (c *RedisCache) Set(ctx context.Context, key string, e Entry) error {
-	e.StoredAt = time.Now()
+func (c *RedisCache) Set(ctx context.Context, key string, e *Entry) error {
+	cp := *e
+	cp.StoredAt = time.Now()
 
-	data, err := json.Marshal(e)
+	data, err := json.Marshal(cp)
 	if err != nil {
 		// Entry fields are all basic types; Marshal failure here is a programmer error.
 		return fmt.Errorf("marshal cache entry: %w", err)
 	}
 
 	ttl := c.ttlNegative
-	if e.Positive {
+	if cp.Positive {
 		ttl = c.ttlPositive
 	}
 

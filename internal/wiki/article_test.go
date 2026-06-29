@@ -1,6 +1,7 @@
 package wiki_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -23,7 +24,7 @@ func TestFetchHTML_OK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchHTML: %v", err)
 	}
-	if string(got) != string(want) {
+	if !bytes.Equal(got, want) {
 		t.Errorf("body mismatch\ngot:  %q\nwant: %q", got, want)
 	}
 }

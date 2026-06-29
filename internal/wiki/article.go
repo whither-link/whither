@@ -22,7 +22,7 @@ type articleFetcher struct {
 
 func (c *articleFetcher) FetchHTML(ctx context.Context, title string) ([]byte, error) {
 	reqURL := c.htmlBase + "/page/html/" + url.PathEscape(title)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("article fetch: build request: %w", err)
 	}

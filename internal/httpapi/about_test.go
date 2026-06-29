@@ -19,7 +19,7 @@ func newAboutRouter(t *testing.T) http.Handler {
 func TestAbout_Canonical_OK(t *testing.T) {
 	router := newAboutRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, httpapi.AboutPath, nil)
+	req := httptest.NewRequest(http.MethodGet, httpapi.AboutPath, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -35,7 +35,7 @@ func TestAbout_Canonical_OK(t *testing.T) {
 func TestAbout_Canonical_AttributionHeader(t *testing.T) {
 	router := newAboutRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, httpapi.AboutPath, nil)
+	req := httptest.NewRequest(http.MethodGet, httpapi.AboutPath, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -48,7 +48,7 @@ func TestAbout_Canonical_AttributionHeader(t *testing.T) {
 func TestAbout_Alias_Redirects(t *testing.T) {
 	router := newAboutRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, "/about", nil)
+	req := httptest.NewRequest(http.MethodGet, "/about", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -63,7 +63,7 @@ func TestAbout_Alias_Redirects(t *testing.T) {
 func TestAbout_NonGET_Returns405(t *testing.T) {
 	router := newAboutRouter(t)
 
-	req := httptest.NewRequest(http.MethodPost, httpapi.AboutPath, nil)
+	req := httptest.NewRequest(http.MethodPost, httpapi.AboutPath, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 

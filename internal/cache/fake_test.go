@@ -41,7 +41,7 @@ func TestFakeCache_MissOnEmpty(t *testing.T) {
 func TestFakeCache_SetGet(t *testing.T) {
 	c := newFake(nil)
 	e := cache.Entry{URL: "https://example.com", ResolvedVia: "wikidata-p856", Positive: true}
-	if err := c.Set(bg, "k", e); err != nil {
+	if err := c.Set(bg, "k", &e); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
 	got, ok, err := c.Get(bg, "k")
@@ -56,7 +56,7 @@ func TestFakeCache_SetGet(t *testing.T) {
 func TestFakeCache_StoredAtSet(t *testing.T) {
 	fixed := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
 	c := newFake(func() time.Time { return fixed })
-	_ = c.Set(bg, "k", cache.Entry{URL: "https://example.com", Positive: true})
+	_ = c.Set(bg, "k", &cache.Entry{URL: "https://example.com", Positive: true})
 	got, _, _ := c.Get(bg, "k")
 	if !got.StoredAt.Equal(fixed) {
 		t.Errorf("StoredAt = %v, want %v", got.StoredAt, fixed)
@@ -66,7 +66,7 @@ func TestFakeCache_StoredAtSet(t *testing.T) {
 func TestFakeCache_PositiveTTL(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := newFake(func() time.Time { return now })
-	_ = c.Set(bg, "k", cache.Entry{URL: "https://example.com", Positive: true})
+	_ = c.Set(bg, "k", &cache.Entry{URL: "https://example.com", Positive: true})
 
 	now = now.Add(59 * time.Minute)
 	if _, ok, _ := c.Get(bg, "k"); !ok {
@@ -82,7 +82,7 @@ func TestFakeCache_PositiveTTL(t *testing.T) {
 func TestFakeCache_NegativeTTL(t *testing.T) {
 	now := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	c := newFake(func() time.Time { return now })
-	_ = c.Set(bg, "k", cache.Entry{URL: "https://en.wikipedia.org/wiki/Foo", Positive: false})
+	_ = c.Set(bg, "k", &cache.Entry{URL: "https://en.wikipedia.org/wiki/Foo", Positive: false})
 
 	now = now.Add(29 * time.Minute)
 	if _, ok, _ := c.Get(bg, "k"); !ok {
@@ -97,7 +97,7 @@ func TestFakeCache_NegativeTTL(t *testing.T) {
 
 func TestFakeCache_Delete(t *testing.T) {
 	c := newFake(nil)
-	_ = c.Set(bg, "k", cache.Entry{URL: "https://example.com", Positive: true})
+	_ = c.Set(bg, "k", &cache.Entry{URL: "https://example.com", Positive: true})
 	if err := c.Delete(bg, "k"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
@@ -111,8 +111,8 @@ func TestFakeCache_Len(t *testing.T) {
 	if c.Len() != 0 {
 		t.Fatalf("Len on empty cache = %d, want 0", c.Len())
 	}
-	_ = c.Set(bg, "a", cache.Entry{Positive: true})
-	_ = c.Set(bg, "b", cache.Entry{Positive: true})
+	_ = c.Set(bg, "a", &cache.Entry{Positive: true})
+	_ = c.Set(bg, "b", &cache.Entry{Positive: true})
 	if c.Len() != 2 {
 		t.Fatalf("Len = %d, want 2", c.Len())
 	}

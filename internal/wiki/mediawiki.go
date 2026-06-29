@@ -48,7 +48,7 @@ func (c *mediaWikiClient) Normalize(ctx context.Context, title string) (PageInfo
 		"titles":        {title},
 		"prop":          {"pageprops"},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"?"+params.Encode(), http.NoBody)
 	if err != nil {
 		return PageInfo{}, fmt.Errorf("mediawiki normalize: build request: %w", err)
 	}
@@ -93,7 +93,7 @@ func (c *mediaWikiClient) OpenSearch(ctx context.Context, query string, limit in
 		"search": {query},
 		"limit":  {fmt.Sprintf("%d", limit)},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"?"+params.Encode(), http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("mediawiki opensearch: build request: %w", err)
 	}

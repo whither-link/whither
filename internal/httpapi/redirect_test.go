@@ -40,7 +40,7 @@ func TestRedirect_Root(t *testing.T) {
 	r := &fakeResolver{}
 	router := newRedirectRouter(t, r)
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -62,7 +62,7 @@ func TestRedirect_Article_AllHeaders(t *testing.T) {
 	}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/Some_Article", nil)
+	req := httptest.NewRequest(http.MethodGet, "/Some_Article", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -96,7 +96,7 @@ func TestRedirect_ResolvedVia_Values(t *testing.T) {
 				},
 			}
 			router := newRedirectRouter(t, fr)
-			req := httptest.NewRequest(http.MethodGet, "/Foo", nil)
+			req := httptest.NewRequest(http.MethodGet, "/Foo", http.NoBody)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
@@ -113,7 +113,7 @@ func TestRedirect_Fresh_PassedToResolver(t *testing.T) {
 	}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/Foo?fresh=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/Foo?fresh=1", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -128,7 +128,7 @@ func TestRedirect_NoFresh_DefaultsFalse(t *testing.T) {
 	}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/Foo", nil)
+	req := httptest.NewRequest(http.MethodGet, "/Foo", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -142,7 +142,7 @@ func TestRedirect_BadInput_Returns400(t *testing.T) {
 	fr := &fakeResolver{resolveErr: resolve.ErrBadInput}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/bad-article", nil)
+	req := httptest.NewRequest(http.MethodGet, "/bad-article", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -157,7 +157,7 @@ func TestRedirect_PathTooLong_Returns400(t *testing.T) {
 
 	// Build a path longer than MaxPathLen (512) using safe ASCII characters.
 	article := strings.Repeat("a", 513)
-	req := httptest.NewRequest(http.MethodGet, "/"+article, nil)
+	req := httptest.NewRequest(http.MethodGet, "/"+article, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -177,7 +177,7 @@ func TestRedirect_UpstreamUnavailable_StaleServe(t *testing.T) {
 	}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/Foo", nil)
+	req := httptest.NewRequest(http.MethodGet, "/Foo", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -196,7 +196,7 @@ func TestRedirect_UpstreamUnavailable_NoStale_Returns503(t *testing.T) {
 	}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/Foo", nil)
+	req := httptest.NewRequest(http.MethodGet, "/Foo", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -212,7 +212,7 @@ func TestRedirect_NonGET_Returns405(t *testing.T) {
 	fr := &fakeResolver{}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodPost, "/Some_Article", nil)
+	req := httptest.NewRequest(http.MethodPost, "/Some_Article", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -225,7 +225,7 @@ func TestRedirect_UnexpectedError_Returns500(t *testing.T) {
 	fr := &fakeResolver{resolveErr: errUnexpected}
 	router := newRedirectRouter(t, fr)
 
-	req := httptest.NewRequest(http.MethodGet, "/Foo", nil)
+	req := httptest.NewRequest(http.MethodGet, "/Foo", http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 

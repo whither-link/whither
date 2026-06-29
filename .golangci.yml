@@ -12,16 +12,15 @@ linters:
     - ineffassign
     - revive
     - staticcheck
-
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
+  settings:
+    revive:
+      rules:
+        - name: exported
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
 
 issues:
   max-issues-per-linter: 0

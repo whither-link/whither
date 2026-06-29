@@ -49,8 +49,8 @@ func (t *TwoLevel) Get(ctx context.Context, key string) (Entry, bool, error) {
 }
 
 // Set implements [Cache].
-func (t *TwoLevel) Set(ctx context.Context, key string, e Entry) error {
-	t.l1.Add(key, l1Entry{entry: e, expiresAt: t.clockFn().Add(t.l1TTL)})
+func (t *TwoLevel) Set(ctx context.Context, key string, e *Entry) error {
+	t.l1.Add(key, l1Entry{entry: *e, expiresAt: t.clockFn().Add(t.l1TTL)})
 	return t.l2.Set(ctx, key, e)
 }
 

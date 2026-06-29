@@ -82,7 +82,7 @@ func TestResolver_CacheHit(t *testing.T) {
 	mw := &fakeMW{} // should not be called
 	r := testResolver(mw, &fakeWD{}, c)
 
-	_ = c.Set(context.Background(), cache.Key("v1", "en", "anna's_archive"), cache.Entry{
+	_ = c.Set(context.Background(), cache.Key("v1", "en", "anna's_archive"), &cache.Entry{
 		URL:         "https://annas-archive.org",
 		ResolvedVia: "wikidata-p856",
 		QID:         "Q115057960",
@@ -106,7 +106,7 @@ func TestResolver_CacheHit(t *testing.T) {
 
 func TestResolver_FreshBypassesCache(t *testing.T) {
 	c := newCache()
-	_ = c.Set(context.Background(), cache.Key("v1", "en", "foo"), cache.Entry{
+	_ = c.Set(context.Background(), cache.Key("v1", "en", "foo"), &cache.Entry{
 		URL:      "https://stale.example.com",
 		Positive: true,
 	})
@@ -281,7 +281,7 @@ func TestResolver_WikidataUnavailablePropagates(t *testing.T) {
 
 func TestResolver_GetStale_Hit(t *testing.T) {
 	c := newCache()
-	_ = c.Set(context.Background(), cache.Key("v1", "en", "foo"), cache.Entry{
+	_ = c.Set(context.Background(), cache.Key("v1", "en", "foo"), &cache.Entry{
 		URL:         "https://foo.example.com",
 		ResolvedVia: "wikidata-p856",
 		QID:         "Q1",
@@ -435,7 +435,7 @@ func TestResolver_Singleflight_CancelledFollowerReturnsCtxErr(t *testing.T) {
 	leaderDone := make(chan struct{})
 	go func() {
 		defer close(leaderDone)
-		r.Resolve(context.Background(), "Golang", false) //nolint:errcheck
+		r.Resolve(context.Background(), "Golang", false) //nolint:errcheck // return value intentionally dropped in goroutine
 	}()
 	time.Sleep(10 * time.Millisecond)
 

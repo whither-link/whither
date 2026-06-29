@@ -45,7 +45,7 @@ func testRouter(t *testing.T) http.Handler {
 func TestHealthEndpoint_OK(t *testing.T) {
 	router := testRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, httpapi.HealthPath, nil)
+	req := httptest.NewRequest(http.MethodGet, httpapi.HealthPath, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -64,7 +64,7 @@ func TestHealthEndpoint_OK(t *testing.T) {
 func TestHealthEndpoint_SetsRequestID(t *testing.T) {
 	router := testRouter(t)
 
-	req := httptest.NewRequest(http.MethodGet, httpapi.HealthPath, nil)
+	req := httptest.NewRequest(http.MethodGet, httpapi.HealthPath, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -76,7 +76,7 @@ func TestHealthEndpoint_SetsRequestID(t *testing.T) {
 func TestHealthEndpoint_MethodNotAllowed(t *testing.T) {
 	router := testRouter(t)
 
-	req := httptest.NewRequest(http.MethodPost, httpapi.HealthPath, nil)
+	req := httptest.NewRequest(http.MethodPost, httpapi.HealthPath, http.NoBody)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 

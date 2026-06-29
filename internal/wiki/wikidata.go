@@ -78,7 +78,7 @@ func (c *wikidataClient) OfficialWebsites(ctx context.Context, qid string) ([]Of
 		"entity":   {qid},
 		"property": {"P856"},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.apiBase+"?"+params.Encode(), http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("wikidata official websites: build request: %w", err)
 	}
