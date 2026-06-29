@@ -58,7 +58,7 @@ func run() error {
 
 	var c cache.Cache = redisCache
 	if cfg.CacheL1Enabled {
-		c, err = cache.NewTwoLevel(cfg.CacheL1Size, cfg.CacheL1TTL, redisCache, nil)
+		c, err = cache.NewTwoLevel(cfg.CacheL1Size, cfg.CacheL1TTL, redisCache, nil, logger)
 		if err != nil {
 			return fmt.Errorf("cache l1: %w", err)
 		}

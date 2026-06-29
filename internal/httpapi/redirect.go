@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/whither-link/whither/internal/config"
+	"github.com/whither-link/whither/internal/observ"
 	"github.com/whither-link/whither/internal/resolve"
 )
 
@@ -32,6 +33,10 @@ func redirectHandler(cfg *config.Config, r resolve.Resolver, log *slog.Logger) h
 		result, err := r.Resolve(ctx, article, fresh)
 		switch {
 		case err == nil:
+			observ.AddLogAttr(ctx,
+				slog.String("resolved_via", string(result.ResolvedVia)),
+				slog.Bool("from_cache", result.FromCache),
+			)
 			writeRedirect(w, result, cfg)
 		case errors.Is(err, resolve.ErrBadInput):
 			http.Error(w, err.Error(), http.StatusBadRequest)

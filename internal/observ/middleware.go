@@ -8,10 +8,42 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 )
 
 type requestIDKey struct{}
+
+type requestAttrsKey struct{}
+
+type requestAttrs struct {
+	mu    sync.Mutex
+	attrs []slog.Attr
+}
+
+// AddLogAttr attaches extra slog attributes to the current request's access log line.
+// No-ops if ctx has no request attrs (e.g. in tests that bypass the middleware).
+func AddLogAttr(ctx context.Context, attrs ...slog.Attr) {
+	ra, _ := ctx.Value(requestAttrsKey{}).(*requestAttrs)
+	if ra == nil {
+		return
+	}
+	ra.mu.Lock()
+	ra.attrs = append(ra.attrs, attrs...)
+	ra.mu.Unlock()
+}
+
+func logAttrsFromCtx(ctx context.Context) []slog.Attr {
+	ra, _ := ctx.Value(requestAttrsKey{}).(*requestAttrs)
+	if ra == nil {
+		return nil
+	}
+	ra.mu.Lock()
+	defer ra.mu.Unlock()
+	out := make([]slog.Attr, len(ra.attrs))
+	copy(out, ra.attrs)
+	return out
+}
 
 // RequestID adds a unique X-Request-Id header and stores the ID in the request context.
 func RequestID(next http.Handler) http.Handler {
@@ -30,9 +62,13 @@ func RequestIDFromContext(ctx context.Context) string {
 }
 
 // AccessLog logs each completed request; /.well-known/ paths are logged at debug.
+// Handlers may call [AddLogAttr] to attach extra fields to the log line.
 func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), requestAttrsKey{}, &requestAttrs{})
+			r = r.WithContext(ctx)
+
 			start := time.Now()
 			rw := newStatusRecorder(w)
 			next.ServeHTTP(rw, r)
@@ -42,15 +78,17 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 				level = slog.LevelDebug
 			}
 
-			logger.LogAttrs(r.Context(), level, "request",
-				slog.String("request_id", RequestIDFromContext(r.Context())),
+			attrs := []slog.Attr{
+				slog.String("request_id", RequestIDFromContext(ctx)),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.Int("status", rw.status),
 				slog.Int("bytes", rw.bytes),
 				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
 				slog.String("remote", r.RemoteAddr),
-			)
+			}
+			attrs = append(attrs, logAttrsFromCtx(ctx)...)
+			logger.LogAttrs(ctx, level, "request", attrs...)
 		})
 	}
 }

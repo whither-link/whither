@@ -9,7 +9,7 @@ import (
 
 func newTwoLevel(t *testing.T, l2 *cache.FakeCache, l1TTL time.Duration, clockFn func() time.Time) *cache.TwoLevel {
 	t.Helper()
-	tl, err := cache.NewTwoLevel(64, l1TTL, l2, clockFn)
+	tl, err := cache.NewTwoLevel(64, l1TTL, l2, clockFn, nil)
 	if err != nil {
 		t.Fatalf("NewTwoLevel: %v", err)
 	}
