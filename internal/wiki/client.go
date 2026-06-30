@@ -8,7 +8,9 @@ import (
 	"math/rand/v2"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -111,7 +113,7 @@ func newBaseClient(cfg *config.Config, opts ...Option) *baseClient {
 			Transport: transport,
 			Timeout:   cfg.UpstreamTimeout + 5*time.Second,
 		},
-		userAgent:   fmt.Sprintf("Whither/%s (+https://whither.link; %s)", v, cfg.UserAgentContact),
+		userAgent:   fmt.Sprintf("Whither/%s (bot; https://whither.link; %s) Go/%s", v, cfg.UserAgentContact, strings.TrimPrefix(runtime.Version(), "go")),
 		sem:         newSemaphore(cfg.UpstreamMaxConcurrency, cfg.UpstreamMaxWaiting, cfg.UpstreamAcquireTimeout),
 		maxRetries:  cfg.UpstreamMaxRetries,
 		backoffBase: cfg.UpstreamBackoffBase,
